@@ -14,6 +14,12 @@ interface Props {
   mcpStatusIcon?: string
   /** 是否正在进行索引，用于控制指示器的 loading 态 */
   mcpIsIndexing?: boolean
+  /** 最近一次索引失败的时间戳（由后端提供的原始字符串） */
+  mcpLastFailureTime?: string | null
+  /** 最近一次索引失败的错误信息摘要 */
+  mcpLastError?: string | null
+  /** 当前项目失败文件数量，用于快速告警提示 */
+  mcpFailedFiles?: number
 }
 
 interface Emits {
@@ -33,6 +39,9 @@ const props = withDefaults(defineProps<Props>(), {
   mcpStatusSummary: '',
   mcpStatusIcon: 'i-carbon-help text-gray-400',
   mcpIsIndexing: false,
+  mcpLastFailureTime: null,
+  mcpLastError: null,
+  mcpFailedFiles: 0,
 })
 
 const emit = defineEmits<Emits>()
@@ -105,6 +114,21 @@ function handleOpenIndexStatus() {
             </div>
             <div v-if="mcpIsIndexing">
               正在索引中，稍后搜索结果会更加完整。
+            </div>
+            <div v-if="(props.mcpFailedFiles ?? 0) > 0" class="text-red-400">
+              最近失败文件数：{{ props.mcpFailedFiles }}
+            </div>
+            <div v-if="props.mcpLastFailureTime" class="text-red-300">
+              最近失败时间：{{ props.mcpLastFailureTime }}
+            </div>
+            <div v-if="props.mcpLastError" class="text-red-300 line-clamp-3">
+              最近错误：{{ props.mcpLastError }}
+            </div>
+            <div
+              v-else-if="!mcpIsIndexing && (props.mcpFailedFiles ?? 0) === 0"
+              class="text-green-300"
+            >
+              最近无错误，索引状态稳定。
             </div>
           </div>
         </n-tooltip>

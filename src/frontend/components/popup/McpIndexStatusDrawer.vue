@@ -36,6 +36,8 @@ const drawerVisible = computed({
 const filesStatus = ref<ProjectFilesStatus | null>(null)
 const loadingFiles = ref(false)
 const filesError = ref<string | null>(null)
+// 是否仅显示未完全同步的文件（过滤开关）
+const showOnlyPending = ref(false)
 
 const message = useMessage()
 
@@ -53,7 +55,12 @@ interface IndexTreeNode {
 // 根据后端返回的文件列表构建简单树结构
 const treeData = computed<IndexTreeNode[]>(() => {
   const result: IndexTreeNode[] = []
-  const files = filesStatus.value?.files ?? []
+  const allFiles = filesStatus.value?.files ?? []
+
+  // 根据开关过滤文件列表：仅保留状态不是 indexed 的文件
+  const files = showOnlyPending.value
+    ? allFiles.filter(file => file.status !== 'indexed')
+    : allFiles
 
   for (const file of files) {
     insertPath(result, file.path, file.status)
@@ -242,7 +249,17 @@ function handleResyncClick() {
         <!-- 项目结构树 -->
         <div class="space-y-2">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-medium text-gray-500">项目结构</span>
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-medium text-gray-500">项目结构</span>
+              <!-- 仅显示未完全同步文件开关 -->
+              <div class="flex items-center gap-1 text-[11px] text-gray-500">
+                <n-switch
+                  v-model:value="showOnlyPending"
+                  size="small"
+                />
+                <span>仅显示未完全同步</span>
+              </div>
+            </div>
             <n-button
               text
               size="tiny"

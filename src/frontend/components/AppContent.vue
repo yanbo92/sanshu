@@ -97,6 +97,11 @@ const showMcpIndexStatus = computed(() => {
     && !!currentProjectStatus.value
 })
 
+// Header Tooltip 使用的错误与告警摘要信息
+const mcpFailedFiles = computed(() => currentProjectStatus.value?.failed_files ?? 0)
+const mcpLastFailureTime = computed(() => currentProjectStatus.value?.last_failure_time || null)
+const mcpLastError = computed(() => currentProjectStatus.value?.last_error || null)
+
 // 切换弹窗设置显示
 function togglePopupSettings() {
   showPopupSettings.value = !showPopupSettings.value
@@ -172,6 +177,9 @@ onUnmounted(() => {
           :mcp-status-summary="statusSummary"
           :mcp-status-icon="statusIcon"
           :mcp-is-indexing="isIndexing"
+          :mcp-failed-files="mcpFailedFiles"
+          :mcp-last-failure-time="mcpLastFailureTime"
+          :mcp-last-error="mcpLastError"
           @theme-change="$emit('themeChange', $event)"
           @open-main-layout="togglePopupSettings"
           @toggle-always-on-top="$emit('toggleAlwaysOnTop')"

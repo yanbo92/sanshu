@@ -1,14 +1,150 @@
-name: 构建 CLI 工具
+name: 发布流程 (Release Pipeline)
 
 on:
+  # 允许手动触发：用于发布新版本（包含自动版本升级、打标签、构建和发布）
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: '版本类型 (patch=修复, minor=功能, major=重大变更)'
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - custom
+      custom_version:
+        description: '自定义版本号 (格式: x.y.z, 仅当类型选为 custom 时有效)'
+        required: false
+        type: string
+
+  # 允许 Tag 触发：用于重新构建或手动打 Tag 后的发布
   push:
     tags: ['v*']
-  workflow_dispatch:
 
 jobs:
-  build-cli:
+  # -----------------------------------------------------------------------------
+  # 阶段 1: 准备发布 (版本管理 & 标签)
+  # -----------------------------------------------------------------------------
+  prepare:
+    name: 准备发布
+    runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write  # 需要写入权限来推送 Tag
+    outputs:
+      version: ${{ steps.determine_version.outputs.version }}
+      tag_name: ${{ steps.determine_version.outputs.tag_name }}
+      should_build: ${{ steps.check_trigger.outputs.should_build }}
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 配置 Git 用户
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: 确定版本号
+        id: determine_version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # --- 手动触发逻辑：计算新版本 ---
+            
+            # 1. 获取当前版本
+            if [ -f "Cargo.toml" ]; then
+              CURRENT_VERSION=$(grep '^version = ' Cargo.toml | head -1 | cut -d'"' -f2)
+            else
+              CURRENT_VERSION="0.0.0"
+            fi
+            echo "Current version: $CURRENT_VERSION"
+
+            # 2. 计算新版本
+            TYPE="${{ inputs.version_type }}"
+            CUSTOM="${{ inputs.custom_version }}"
+            
+            if [ "$TYPE" = "custom" ]; then
+              if [ -z "$CUSTOM" ]; then
+                echo "Error: Custom version is required when type is 'custom'"
+                exit 1
+              fi
+              NEW_VERSION="$CUSTOM"
+            else
+              IFS='.' read -r major minor patch <<< "$CURRENT_VERSION"
+              case $TYPE in
+                "major") major=$((major + 1)); minor=0; patch=0 ;;
+                "minor") minor=$((minor + 1)); patch=0 ;;
+                "patch") patch=$((patch + 1)) ;;
+              esac
+              NEW_VERSION="$major.$minor.$patch"
+            fi
+            
+            echo "New version: $NEW_VERSION"
+            echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+            echo "tag_name=v$NEW_VERSION" >> $GITHUB_OUTPUT
+            echo "is_new_release=true" >> $GITHUB_OUTPUT
+
+          else
+            # --- Tag 触发逻辑：使用现有 Tag ---
+            TAG_NAME="${{ github.ref_name }}"
+            VERSION=${TAG_NAME#v}
+            echo "Triggered by tag: $TAG_NAME"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+            echo "is_new_release=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 更新版本文件并推送 (仅手动触发)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          NEW_VERSION="${{ steps.determine_version.outputs.version }}"
+          TAG_NAME="${{ steps.determine_version.outputs.tag_name }}"
+          CURRENT_DATE=$(date +"%Y-%m-%d")
+
+          echo "Updating files to version $NEW_VERSION..."
+
+          # 更新 Cargo.toml
+          if [ -f "Cargo.toml" ]; then
+            sed -i.bak "s/^version = \"[^\"]*\"/version = \"$NEW_VERSION\"/" Cargo.toml && rm Cargo.toml.bak
+          fi
+
+          # 更新 package.json
+          if [ -f "package.json" ]; then
+            sed -i.bak "s/\"version\"[[:space:]]*:[[:space:]]*\"[^\"]*\"/\"version\": \"$NEW_VERSION\"/" package.json && rm package.json.bak
+          fi
+
+          # 更新 tauri.conf.json
+          if [ -f "tauri.conf.json" ]; then
+            sed -i.bak "s/\"version\"[[:space:]]*:[[:space:]]*\"[^\"]*\"/\"version\": \"$NEW_VERSION\"/" tauri.conf.json && rm tauri.conf.json.bak
+          fi
+
+          # 更新 version.json
+          if [ -f "version.json" ]; then
+            sed -i.bak "s/\"version\"[[:space:]]*:[[:space:]]*\"[^\"]*\"/\"version\": \"$NEW_VERSION\"/" version.json && rm version.json.bak
+            sed -i.bak "s/\"build_date\"[[:space:]]*:[[:space:]]*\"[^\"]*\"/\"build_date\": \"$CURRENT_DATE\"/" version.json && rm version.json.bak
+          fi
+
+          # 提交并推送
+          git add .
+          git commit -m "release: Release $NEW_VERSION"
+          git tag -a "$TAG_NAME" -m "Release $NEW_VERSION"
+          
+          echo "Pushing changes and tag..."
+          git push origin main
+          git push origin "$TAG_NAME"
+
+  # -----------------------------------------------------------------------------
+  # 阶段 2: 多平台构建 (Build)
+  # -----------------------------------------------------------------------------
+  build:
+    name: 构建 CLI (${{ matrix.name }})
+    needs: prepare
+    runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
       matrix:
@@ -26,30 +162,21 @@ jobs:
             args: ''
             name: windows-x86_64
 
-    runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          # 关键：检出特定的 Tag，确保所有构建机器使用相同的代码状态
+          ref: ${{ needs.prepare.outputs.tag_name }}
 
-      - name: 安装系统依赖 (Linux)
+      - name: 安装 Linux 系统依赖
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            pkg-config \
-            libglib2.0-dev \
-            libgtk-3-dev \
-            libgdk-pixbuf2.0-dev \
-            libpango1.0-dev \
-            libatk1.0-dev \
-            libcairo-gobject2 \
-            libjavascriptcoregtk-4.1-dev \
-            libasound2-dev \
-            libpulse-dev \
-            libjack-dev
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf pkg-config \
+            libglib2.0-dev libgtk-3-dev libgdk-pixbuf2.0-dev libpango1.0-dev libatk1.0-dev \
+            libcairo-gobject2 libjavascriptcoregtk-4.1-dev libasound2-dev libpulse-dev libjack-dev
 
       - name: 安装 Node.js
         uses: actions/setup-node@v4
@@ -59,9 +186,10 @@ jobs:
       - name: 安装 pnpm
         uses: pnpm/action-setup@v4
 
-      - name: 安装 Rust stable 工具链
+      - name: 安装 Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
+          # macOS 需要同时安装 x86_64 和 aarch64 target
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: 配置 Rust 缓存
@@ -73,44 +201,34 @@ jobs:
       - name: 安装 Tauri CLI
         run: cargo install tauri-cli --version "^2.0" --locked
 
-      - name: 使用 Tauri 构建 (无打包)
+      - name: 构建二进制文件
         shell: bash
         run: |
+          echo "Building for ${{ matrix.name }}..."
           if [[ "${{ matrix.platform }}" == "macos-latest" ]]; then
-            if [[ "${{ matrix.args }}" == *"aarch64"* ]]; then
-              cargo tauri build --target aarch64-apple-darwin --no-bundle
-            else
-              cargo tauri build --target x86_64-apple-darwin --no-bundle
-            fi
-          elif [[ "${{ matrix.platform }}" == "windows-latest" ]]; then
-            cargo tauri build --no-bundle
+            cargo tauri build ${{ matrix.args }} --no-bundle
           else
-            # Linux build - 移除静态链接标志以避免 proc-macro 编译问题
             cargo tauri build --no-bundle
           fi
 
-      - name: 创建 CLI 压缩包
+      - name: 打包产物
         shell: bash
         run: |
           mkdir -p cli-package
-
-          # 获取完整的 tag 名称
-          TAG_NAME="${{ github.ref_name }}"
-
-          # 确定目标目录
+          TAG_NAME="${{ needs.prepare.outputs.tag_name }}"
+          
+          # 确定产物路径
           if [[ "${{ matrix.platform }}" == "macos-latest" ]]; then
             if [[ "${{ matrix.args }}" == *"aarch64"* ]]; then
               TARGET_DIR="target/aarch64-apple-darwin/release"
             else
               TARGET_DIR="target/x86_64-apple-darwin/release"
             fi
-          elif [[ "${{ matrix.platform }}" == "windows-latest" ]]; then
-            TARGET_DIR="target/release"
           else
             TARGET_DIR="target/release"
           fi
 
-          # 复制二进制文件
+          # 复制并压缩
           if [[ "${{ matrix.platform }}" == "windows-latest" ]]; then
             cp "$TARGET_DIR/等一下.exe" cli-package/
             cp "$TARGET_DIR/三术.exe" cli-package/
@@ -130,156 +248,90 @@ jobs:
           path: |
             sansu-cli-*.tar.gz
             sansu-cli-*.zip
-          if-no-files-found: ignore
+          if-no-files-found: error
 
+  # -----------------------------------------------------------------------------
+  # 阶段 3: 发布 (Publish)
+  # -----------------------------------------------------------------------------
   release:
-    name: 创建发布
-    needs: build-cli
+    name: 发布 Release
+    needs: [prepare, build]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-
+    permissions:
+      contents: write
+    
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-
-      - name: 验证版本一致性
-        run: |
-          # 获取 git tag 版本号（去掉 v 前缀）
-          TAG_NAME="${{ github.ref_name }}"
-          TAG_VERSION_NUMBER=${TAG_NAME#v}
-
-          # 从项目文件读取版本号
-          if [ -f "version.json" ]; then
-            PROJECT_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' version.json | cut -d'"' -f4)
-          elif [ -f "Cargo.toml" ]; then
-            PROJECT_VERSION=$(grep '^version = ' Cargo.toml | head -1 | cut -d'"' -f2)
-          else
-            echo "Warning: No version file found, skipping version check"
-            exit 0
-          fi
-
-          echo "Git tag version: ${TAG_VERSION_NUMBER}"
-          echo "Project file version: ${PROJECT_VERSION}"
-
-          # 检查版本是否一致
-          if [ "${TAG_VERSION_NUMBER}" != "${PROJECT_VERSION}" ]; then
-            echo "❌ Version mismatch detected!"
-            echo "Git tag version: ${TAG_VERSION_NUMBER}"
-            echo "Project file version: ${PROJECT_VERSION}"
-            echo ""
-            echo "Please ensure the git tag matches the version in project files."
-            echo "You can either:"
-            echo "1. Update project files to match tag: ${TAG_VERSION_NUMBER}"
-            echo "2. Create a new tag that matches project version: v${PROJECT_VERSION}"
-            exit 1
-          fi
-
-          echo "✅ Version consistency check passed: ${TAG_VERSION_NUMBER}"
+          ref: ${{ needs.prepare.outputs.tag_name }}
 
       - name: 下载所有构建产物
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: 安装 git-cliff
+      - name: 安装 git-cliff (用于生成 Changelog)
         uses: taiki-e/install-action@git-cliff
 
-      - name: 生成变更日志和发布标题
+      - name: 生成 Changelog
         id: changelog
         run: |
-          # 从 GitHub API 获取最新的 release 版本
-          echo "Fetching latest release from GitHub API..."
-          LATEST_RELEASE=$(curl -s "https://api.github.com/repos/imhuso/sansu/releases/latest" | jq -r '.tag_name // empty' 2>/dev/null || echo "")
-
-          if [ -z "$LATEST_RELEASE" ] || [ "$LATEST_RELEASE" = "null" ]; then
-            echo "GitHub API failed or no previous release found, falling back to git tags"
-            # 回退到使用 git tag 获取上一个版本
-            PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -2 | tail -1)
-            if [ -z "$PREVIOUS_TAG" ]; then
-              echo "No previous tags found, generating full changelog"
-            else
-              echo "Found previous tag: $PREVIOUS_TAG"
-            fi
+          TAG_NAME="${{ needs.prepare.outputs.tag_name }}"
+          
+          # 尝试获取上一个 Tag
+          PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+' | grep -A 1 "^$TAG_NAME$" | tail -n 1 || echo "")
+          
+          echo "Generating changelog for $TAG_NAME (Previous: $PREVIOUS_TAG)"
+          
+          if [ -z "$PREVIOUS_TAG" ] || [ "$PREVIOUS_TAG" == "$TAG_NAME" ]; then
+            git-cliff --tag "$TAG_NAME" --output changelog.md
           else
-            PREVIOUS_TAG="$LATEST_RELEASE"
-            echo "Found previous release: $PREVIOUS_TAG"
+            git-cliff "$PREVIOUS_TAG..$TAG_NAME" --output changelog.md
           fi
-
-          echo "Current tag: ${{ github.ref_name }}"
-          echo "Previous version: $PREVIOUS_TAG"
-
-          if [ -z "$PREVIOUS_TAG" ]; then
-            # 如果没有上一个版本，生成所有提交的 changelog
-            git-cliff --tag ${{ github.ref_name }} --output changelog.md
-          else
-            # 只生成从上一个版本到当前版本的 changelog
-            git-cliff $PREVIOUS_TAG..${{ github.ref_name }} --output changelog.md
-
-            # 添加 Full Changelog 链接
-            echo "" >> changelog.md
-            echo "**Full Changelog**: [$PREVIOUS_TAG...${{ github.ref_name }}](https://github.com/imhuso/sansu/compare/$PREVIOUS_TAG...${{ github.ref_name }})" >> changelog.md
+          
+          # 生成发布标题 (提取主要特性)
+          VERSION=${TAG_NAME#v}
+          if [ -n "$PREVIOUS_TAG" ]; then
+            MAIN_FEATURE=$(git log --oneline "$PREVIOUS_TAG..$TAG_NAME" | grep -E "^[a-f0-9]+ (feat|fix)" | head -1 | sed 's/^[a-f0-9]* //' | sed 's/^feat: /✨ /' | sed 's/^fix: /🐞 /')
           fi
-
-          # 生成发布标题
-          VERSION_NUMBER="${{ github.ref_name }}"
-          VERSION_NUMBER=${VERSION_NUMBER#v}  # 移除 v 前缀
-
-          # 从最近的提交中提取主要功能作为标题
-          if [ -z "$PREVIOUS_TAG" ]; then
-            COMMIT_RANGE="${{ github.ref_name }}"
-          else
-            COMMIT_RANGE="$PREVIOUS_TAG..${{ github.ref_name }}"
-          fi
-
-          MAIN_FEATURE=$(git log --oneline $COMMIT_RANGE | grep -E "^[a-f0-9]+ (feat|fix)" | head -1 | sed 's/^[a-f0-9]* //' | sed 's/^feat: /✨ /' | sed 's/^fix: /🐞 /')
-
+          
           if [ -z "$MAIN_FEATURE" ]; then
-            RELEASE_TITLE="$VERSION_NUMBER 📦 版本更新"
+             echo "release_title=$VERSION 📦 版本更新" >> $GITHUB_OUTPUT
           else
-            RELEASE_TITLE="$VERSION_NUMBER $MAIN_FEATURE"
+             echo "release_title=$VERSION $MAIN_FEATURE" >> $GITHUB_OUTPUT
           fi
 
-          echo "release_title=$RELEASE_TITLE" >> $GITHUB_OUTPUT
-          echo "Generated release title: $RELEASE_TITLE"
-
-      - name: 创建发布
+      - name: 创建 GitHub Release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ needs.prepare.outputs.tag_name }}
+          name: ${{ steps.changelog.outputs.release_title }}
+          body_path: changelog.md
+          draft: false
+          prerelease: false
           files: |
             artifacts/*/sansu-cli-*.tar.gz
             artifacts/*/sansu-cli-*.zip
-          draft: false
-          prerelease: false
-          generate_release_notes: false
-          name: ${{ steps.changelog.outputs.release_title }}
-          body_path: changelog.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 触发 Homebrew 配方更新
+      - name: 触发 Homebrew 更新
         uses: actions/github-script@v7
+        continue-on-error: true
         with:
-          github-token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           script: |
-            console.log('Triggering Homebrew formula update...');
-
+            console.log('Triggering Homebrew update...');
             try {
-              const response = await github.rest.actions.createWorkflowDispatch({
+              await github.rest.actions.createWorkflowDispatch({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 workflow_id: 'update-homebrew.yml',
                 ref: 'main',
-                inputs: {
-                  tag_name: '${{ github.ref_name }}'
-                }
+                inputs: { tag_name: '${{ needs.prepare.outputs.tag_name }}' }
               });
-
-              console.log('✅ Homebrew update workflow triggered successfully');
+              console.log('✅ Homebrew update triggered');
             } catch (error) {
-              console.error('❌ Failed to trigger Homebrew update workflow:', error);
-              // 不让这个错误阻止主要的发布流程
-              console.log('Continuing with release process...');
+              console.error('⚠️ Could not trigger Homebrew update:', error);
             }

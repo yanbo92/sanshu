@@ -323,6 +323,114 @@
 
 ---
 
+## 🚀 版本发布流程
+
+本项目使用 GitHub Actions 实现全自动化的版本发布流程，支持多平台构建和 Homebrew 分发。
+
+### 发布前准备
+
+在发布新版本前，请确保：
+
+- [ ] 所有代码已合并到 `main` 分支
+- [ ] CI 检查通过（代码检查、Clippy 规范检查）
+- [ ] 重要功能已完成测试
+- [ ] CHANGELOG 或提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/) 规范
+
+### 版本号规范
+
+本项目遵循 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 规范：
+
+| 版本类型 | 格式 | 适用场景 | 示例 |
+|----------|------|----------|------|
+| `patch` | x.y.**Z** | 向后兼容的 Bug 修复 | 0.2.3 → 0.2.4 |
+| `minor` | x.**Y**.0 | 向后兼容的新功能 | 0.2.3 → 0.3.0 |
+| `major` | **X**.0.0 | 不兼容的 API 变更 | 0.2.3 → 1.0.0 |
+| `custom` | 自定义 | 特殊版本号需求 | 任意格式 |
+
+### 发布步骤
+
+#### 方式一：通过 GitHub Actions 手动触发（推荐）
+
+这是最简单的发布方式，自动处理版本号更新、Tag 创建和多平台构建：
+
+1. 进入 GitHub 仓库的 **Actions** 页面
+2. 在左侧选择 **发布流程 (Release Pipeline)**
+3. 点击右侧的 **Run workflow** 按钮
+4. 选择版本类型：
+   - `patch` - 修复版本
+   - `minor` - 功能版本
+   - `major` - 重大版本
+   - `custom` - 自定义版本（需填写版本号）
+5. 点击 **Run workflow** 开始发布
+
+#### 方式二：通过 Git Tag 触发
+
+如果你更喜欢手动控制版本号，可以直接创建并推送 Tag：
+
+```bash
+# 1. 确保在 main 分支且代码最新
+git checkout main
+git pull origin main
+
+# 2. 手动更新版本文件（可选，工作流会自动处理）
+# - Cargo.toml
+# - package.json
+# - tauri.conf.json
+# - version.json
+
+# 3. 创建带注释的 Tag
+git tag -a v0.2.4 -m "Release v0.2.4"
+
+# 4. 推送 Tag 触发发布流程
+git push origin v0.2.4
+```
+
+### 自动化流程说明
+
+发布工作流会自动执行以下步骤：
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│  准备发布    │ ─▶ │  多平台构建  │ ─▶ │  发布 Release│ ─▶ │ Homebrew   │
+│             │    │             │    │             │    │  更新       │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+      │                  │                  │                  │
+      ▼                  ▼                  ▼                  ▼
+ • 计算版本号       • macOS ARM64      • 生成 Changelog   • 更新配方
+ • 更新版本文件     • macOS x86_64     • 创建 Release     • 计算 SHA256
+ • 创建 Git Tag     • Linux x86_64     • 上传构建产物     • 推送到 Tap
+                    • Windows x86_64
+```
+
+**构建产物**：
+
+| 平台 | 文件名格式 |
+|------|-----------|
+| macOS ARM64 | `sanshu-cli-v{version}-macos-aarch64.tar.gz` |
+| macOS x86_64 | `sanshu-cli-v{version}-macos-x86_64.tar.gz` |
+| Linux x86_64 | `sanshu-cli-v{version}-linux-x86_64.tar.gz` |
+| Windows x86_64 | `sanshu-cli-v{version}-windows-x86_64.zip` |
+
+### 验证发布
+
+发布完成后，可通过以下方式验证：
+
+1. **GitHub Releases**：访问 [Releases 页面](https://github.com/imhuso/sanshu/releases) 确认新版本已发布
+2. **构建产物**：检查 Release 中是否包含所有平台的构建产物
+3. **Homebrew 更新**：
+   ```bash
+   # 更新 Tap
+   brew update
+
+   # 查看可用版本
+   brew info sanshu
+
+   # 升级到新版本
+   brew upgrade sanshu
+   ```
+
+---
+
 ## 🛠️ 技术架构
 
 ### 后端架构 (Rust)

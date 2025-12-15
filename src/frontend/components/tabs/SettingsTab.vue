@@ -6,6 +6,7 @@ import { onMounted, onUnmounted, ref } from 'vue'
 import AudioSettings from '../settings/AudioSettings.vue'
 import CustomPromptSettings from '../settings/CustomPromptSettings.vue'
 import FontSettings from '../settings/FontSettings.vue'
+import ProjectIndexManager from '../settings/ProjectIndexManager.vue'
 import ProxySettings from '../settings/ProxySettings.vue'
 import ReplySettings from '../settings/ReplySettings.vue'
 import ShortcutSettings from '../settings/ShortcutSettings.vue'
@@ -337,6 +338,30 @@ function handleWindowSizeUpdate(size: { width: number, height: number, fixed: bo
         </template>
         <div class="setting-content">
           <ProxySettings />
+        </div>
+      </n-collapse-item>
+
+      <!-- 项目索引管理 -->
+      <n-collapse-item name="project-index">
+        <template #header>
+          <div class="flex items-center justify-between w-full">
+            <div class="flex items-center">
+              <div class="w-10 h-10 rounded-lg bg-teal-100 dark:bg-teal-900 flex items-center justify-center mr-4">
+                <div class="i-carbon-data-base text-lg text-teal-600 dark:text-teal-400" />
+              </div>
+              <div>
+                <div class="text-lg font-medium tracking-tight mb-1">
+                  项目索引管理
+                </div>
+                <div class="text-sm opacity-60 font-normal">
+                  管理和监控项目的索引状态
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+        <div class="setting-content">
+          <ProjectIndexManager />
         </div>
       </n-collapse-item>
 

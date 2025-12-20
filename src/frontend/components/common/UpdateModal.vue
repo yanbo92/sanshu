@@ -1,7 +1,31 @@
 <script setup lang="ts">
+import hljs from 'highlight.js'
+import MarkdownIt from 'markdown-it'
 import { useMessage } from 'naive-ui'
 import { computed, ref } from 'vue'
 import { useVersionCheck } from '../../composables/useVersionCheck'
+
+// 创建 Markdown 渲染实例，配置代码高亮
+const md = new MarkdownIt({
+  html: false, // 禁止原始 HTML 标签，防止 XSS
+  xhtmlOut: false,
+  breaks: true, // 将换行符转换为 <br>
+  langPrefix: 'language-',
+  linkify: true, // 自动识别链接
+  typographer: true,
+  highlight(str: string, lang: string) {
+    // 代码高亮处理
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        return hljs.highlight(str, { language: lang }).value
+      }
+      catch {
+        // 忽略高亮错误
+      }
+    }
+    return '' // 使用默认转义
+  },
+})
 
 interface Props {
   show: boolean
@@ -62,15 +86,22 @@ const connectionDescription = computed(() => {
   return '直连'
 })
 
-// 简单的文本格式化（将换行转换为HTML）
+// 使用 markdown-it 渲染更新说明
 const formattedReleaseNotes = computed(() => {
   if (!props.versionInfo?.releaseNotes)
     return ''
-  return props.versionInfo.releaseNotes
-    .replace(/\n/g, '<br>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/`(.*?)`/g, '<code>$1</code>')
+  try {
+    return md.render(props.versionInfo.releaseNotes)
+  }
+  catch (error) {
+    console.error('Markdown 渲染失败:', error)
+    // 降级处理：返回转义后的纯文本
+    return props.versionInfo.releaseNotes
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>')
+  }
 })
 
 const isVisible = computed({
@@ -424,5 +455,64 @@ async function handleRestart() {
   border-left: 3px solid var(--primary-color);
   background-color: var(--code-color);
   border-radius: 0 0.25rem 0.25rem 0;
+}
+
+/* 代码块样式 */
+.release-notes-content :deep(pre) {
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: 0.375rem;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', monospace;
+  font-size: 0.8125em;
+  line-height: 1.5;
+  background-color: var(--code-color);
+  border: 1px solid var(--border-color);
+}
+
+.release-notes-content :deep(pre code) {
+  padding: 0;
+  background-color: transparent;
+  border: none;
+  font-size: inherit;
+}
+
+/* 链接样式 */
+.release-notes-content :deep(a) {
+  color: var(--primary-color);
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+
+.release-notes-content :deep(a:hover) {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+/* 分隔线样式 */
+.release-notes-content :deep(hr) {
+  margin: 1rem 0;
+  border: none;
+  border-top: 1px solid var(--border-color);
+}
+
+/* 表格样式（如果有） */
+.release-notes-content :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.875em;
+}
+
+.release-notes-content :deep(th),
+.release-notes-content :deep(td) {
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  text-align: left;
+}
+
+.release-notes-content :deep(th) {
+  background-color: var(--code-color);
+  font-weight: 600;
 }
 </style>

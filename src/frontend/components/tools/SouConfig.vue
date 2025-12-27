@@ -401,7 +401,9 @@ defineExpose({ saveConfig })
               </div>
             </ConfigSection>
 
-            <ProjectIndexManager />
+            <n-scrollbar class="project-list-scrollbar">
+              <ProjectIndexManager />
+            </n-scrollbar>
           </n-space>
         </n-scrollbar>
       </n-tab-pane>
@@ -521,5 +523,10 @@ defineExpose({ saveConfig })
 
 :root.dark .toggle-desc {
   color: #9ca3af;
+}
+
+/* 项目列表滚动容器 */
+.project-list-scrollbar {
+  max-height: 55vh;
 }
 </style>

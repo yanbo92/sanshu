@@ -172,6 +172,28 @@ pub struct ProxySpeedTestResult {
     pub success: bool,
 }
 
+/// 搜索结果预览片段
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResultSnippet {
+    /// 文件路径
+    pub file_path: String,
+    /// 匹配的代码片段（截断后）
+    pub snippet: String,
+    /// 片段在文件中的起始行号（可选）
+    pub line_number: Option<u32>,
+}
+
+/// 搜索结果预览（用于测速结果展示）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResultPreview {
+    /// 总匹配数
+    pub total_matches: usize,
+    /// 预览片段（最多3条）
+    pub snippets: Vec<SearchResultSnippet>,
+    /// 原始响应长度（字符数）
+    pub response_length: usize,
+}
+
 /// 单项测试指标
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpeedTestMetric {
@@ -187,4 +209,7 @@ pub struct SpeedTestMetric {
     pub success: bool,
     /// 错误信息
     pub error: Option<String>,
+    /// 搜索结果预览（仅 search 类型有值）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub search_result_preview: Option<SearchResultPreview>,
 }

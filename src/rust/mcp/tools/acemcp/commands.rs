@@ -1027,6 +1027,7 @@ pub async fn test_acemcp_proxy_speed(
         direct_time_ms: None,
         success: true,
         error: None,
+        search_result_preview: None,
     };
     
     // 代理模式 Ping
@@ -1139,6 +1140,7 @@ pub async fn test_acemcp_proxy_speed(
             direct_time_ms: None,
             success: true,
             error: None,
+            search_result_preview: None,
         };
 
         let search_payload = serde_json::json!({
@@ -1154,7 +1156,13 @@ pub async fn test_acemcp_proxy_speed(
         if test_proxy {
             if let Some(ref client) = proxy_client {
                 match search_endpoint(client, &search_url, &token, &search_payload).await {
-                    Ok(ms) => search_metric.proxy_time_ms = Some(ms),
+                    Ok(result) => {
+                        search_metric.proxy_time_ms = Some(result.elapsed_ms);
+                        // 优先使用代理模式的搜索结果预览
+                        if search_metric.search_result_preview.is_none() {
+                            search_metric.search_result_preview = result.preview;
+                        }
+                    }
                     Err(e) => {
                         search_metric.success = false;
                         search_metric.error = Some(format!("代理搜索失败: {}", e));
@@ -1170,7 +1178,13 @@ pub async fn test_acemcp_proxy_speed(
         if test_direct {
             let direct_client = direct_client.as_ref().ok_or_else(|| "直连搜索跳过：直连 client 未初始化".to_string())?;
             match search_endpoint(direct_client, &search_url, &token, &search_payload).await {
-                Ok(ms) => search_metric.direct_time_ms = Some(ms),
+                Ok(result) => {
+                    search_metric.direct_time_ms = Some(result.elapsed_ms);
+                    // 如果代理模式没有预览，使用直连模式的
+                    if search_metric.search_result_preview.is_none() {
+                        search_metric.search_result_preview = result.preview;
+                    }
+                }
                 Err(e) => {
                     if search_metric.error.is_none() {
                         search_metric.success = false;
@@ -1191,6 +1205,7 @@ pub async fn test_acemcp_proxy_speed(
         direct_time_ms: None,
         success: true,
         error: None,
+        search_result_preview: None,
     };
 
     if let Some(err) = project_files_error.clone() {
@@ -1256,6 +1271,7 @@ pub async fn test_acemcp_proxy_speed(
         direct_time_ms: None,
         success: true,
         error: None,
+        search_result_preview: None,
     };
 
     if let Some(err) = project_files_error.clone() {
@@ -1739,8 +1755,15 @@ async fn ping_endpoint(client: &reqwest::Client, url: &str, token: &str) -> Resu
     }
 }
 
+/// 搜索测试结果（包含耗时和结果预览）
+struct SearchEndpointResult {
+    elapsed_ms: u64,
+    preview: Option<super::types::SearchResultPreview>,
+}
+
 /// 搜索测试辅助函数
-async fn search_endpoint(client: &reqwest::Client, url: &str, token: &str, payload: &serde_json::Value) -> Result<u64, String> {
+/// 返回耗时和搜索结果预览（用于前端展示）
+async fn search_endpoint(client: &reqwest::Client, url: &str, token: &str, payload: &serde_json::Value) -> Result<SearchEndpointResult, String> {
     let start = std::time::Instant::now();
     let response = client
         .post(url)
@@ -1754,11 +1777,154 @@ async fn search_endpoint(client: &reqwest::Client, url: &str, token: &str, paylo
     
     let elapsed = start.elapsed().as_millis() as u64;
     
-    if response.status().is_success() {
-        Ok(elapsed)
-    } else {
-        Err(format!("HTTP {}", response.status()))
+    if !response.status().is_success() {
+        return Err(format!("HTTP {}", response.status()));
     }
+    
+    // 解析响应内容，提取搜索结果预览
+    let body = response.text().await.unwrap_or_default();
+    let preview = parse_search_result_preview(&body);
+    
+    Ok(SearchEndpointResult {
+        elapsed_ms: elapsed,
+        preview,
+    })
+}
+
+/// 解析搜索结果响应，提取预览片段
+fn parse_search_result_preview(body: &str) -> Option<super::types::SearchResultPreview> {
+    use super::types::{SearchResultPreview, SearchResultSnippet};
+    
+    let response_length = body.len();
+    
+    // 尝试解析 JSON 响应
+    let json: serde_json::Value = match serde_json::from_str(body) {
+        Ok(v) => v,
+        Err(_) => {
+            // 如果不是 JSON，返回基本信息
+            return Some(SearchResultPreview {
+                total_matches: 0,
+                snippets: vec![],
+                response_length,
+            });
+        }
+    };
+    
+    // ACE API 返回的搜索结果通常在 content 或 results 字段中
+    let mut snippets = Vec::new();
+    let mut total_matches = 0;
+    
+    // 尝试从不同的 JSON 结构中提取结果
+    if let Some(content) = json.get("content") {
+        // 如果是字符串类型的内容，提取代码片段
+        if let Some(text) = content.as_str() {
+            total_matches = 1;
+            // 提取文件路径和代码片段（ACE 格式通常是 "Path: xxx\n内容"）
+            for block in text.split("\n\n").take(3) {
+                let lines: Vec<&str> = block.lines().collect();
+                if lines.is_empty() {
+                    continue;
+                }
+                
+                // 尝试提取文件路径
+                let file_path = lines.first()
+                    .and_then(|l| l.strip_prefix("Path: "))
+                    .unwrap_or("unknown")
+                    .to_string();
+                
+                // 提取代码片段（去除路径行，最多5行）
+                let snippet: String = lines.iter()
+                    .skip(1)
+                    .take(5)
+                    .map(|s| *s)
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                
+                if !snippet.is_empty() {
+                    snippets.push(SearchResultSnippet {
+                        file_path,
+                        snippet: if snippet.len() > 200 {
+                            format!("{}...", &snippet[..200])
+                        } else {
+                            snippet
+                        },
+                        line_number: None,
+                    });
+                }
+            }
+        }
+        // 如果是数组类型
+        else if let Some(arr) = content.as_array() {
+            total_matches = arr.len();
+            for item in arr.iter().take(3) {
+                if let Some(text_item) = item.get("text").and_then(|t| t.as_str()) {
+                    // 尝试从文本中提取文件路径
+                    let file_path = text_item.lines()
+                        .find(|l| l.starts_with("Path: ") || l.contains(".rs") || l.contains(".ts"))
+                        .unwrap_or("unknown")
+                        .to_string();
+                    
+                    let snippet = text_item.lines()
+                        .take(5)
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    
+                    snippets.push(SearchResultSnippet {
+                        file_path,
+                        snippet: if snippet.len() > 200 {
+                            format!("{}...", &snippet[..200])
+                        } else {
+                            snippet
+                        },
+                        line_number: None,
+                    });
+                }
+            }
+        }
+    }
+    
+    // 尝试从 results 字段提取
+    if snippets.is_empty() {
+        if let Some(results) = json.get("results").and_then(|r| r.as_array()) {
+            total_matches = results.len();
+            for result in results.iter().take(3) {
+                let file_path = result.get("path")
+                    .or_else(|| result.get("file"))
+                    .and_then(|p| p.as_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+                
+                let snippet = result.get("content")
+                    .or_else(|| result.get("snippet"))
+                    .and_then(|c| c.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                
+                let line_number = result.get("line")
+                    .or_else(|| result.get("line_number"))
+                    .and_then(|l| l.as_u64())
+                    .map(|l| l as u32);
+                
+                if !snippet.is_empty() {
+                    snippets.push(SearchResultSnippet {
+                        file_path,
+                        snippet: if snippet.len() > 200 {
+                            format!("{}...", &snippet[..200])
+                        } else {
+                            snippet
+                        },
+                        line_number,
+                    });
+                }
+            }
+        }
+    }
+    
+    Some(SearchResultPreview {
+        total_matches,
+        snippets,
+        response_length,
+    })
 }
 
 /// 生成推荐建议

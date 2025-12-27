@@ -30,6 +30,20 @@ interface DetectedProxy {
   response_time_ms: number | null
 }
 
+// 搜索结果预览片段
+interface SearchResultSnippet {
+  file_path: string
+  snippet: string
+  line_number: number | null
+}
+
+// 搜索结果预览
+interface SearchResultPreview {
+  total_matches: number
+  snippets: SearchResultSnippet[]
+  response_length: number
+}
+
 interface SpeedTestMetric {
   name: string
   metric_type: string
@@ -37,6 +51,7 @@ interface SpeedTestMetric {
   direct_time_ms: number | null
   success: boolean
   error: string | null
+  search_result_preview?: SearchResultPreview | null
 }
 
 interface SpeedTestResult {
@@ -650,6 +665,17 @@ function getDiffColorClass(proxyMs: number | null, directMs: number | null): str
   return 'bg-gray-100 dark:bg-gray-800 text-gray-500'
 }
 
+// 格式化字节数为可读字符串
+function formatBytes(bytes: number): string {
+  if (bytes === 0)
+    return '0B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  const size = bytes / Math.pow(k, i)
+  return `${size.toFixed(i > 0 ? 1 : 0)}${sizes[i]}`
+}
+
 // 规范化路径显示，移除Windows长路径前缀
 function normalizePathForDisplay(path: string): string {
   if (!path)
@@ -1165,6 +1191,65 @@ function formatRelativeTime(timeStr: string | null): string {
                             class="text-xs font-mono"
                           />
                         </div>
+                      </div>
+                    </div>
+                  </n-tab-pane>
+
+                  <!-- Tab 3: 搜索数据 -->
+                  <n-tab-pane name="search-data" tab="🔍 搜索数据">
+                    <div class="space-y-4">
+                      <!-- 搜索结果预览卡片 -->
+                      <template v-for="(metric, idx) in speedTestResult.metrics.filter(m => m.metric_type === 'search' && m.search_result_preview)" :key="idx">
+                        <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
+                          <!-- 搜索指标头部 -->
+                          <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                              <div class="i-fa6-solid-magnifying-glass text-blue-500" />
+                              <span class="font-medium text-sm text-gray-800 dark:text-gray-100">{{ metric.name }}</span>
+                            </div>
+                            <div class="flex items-center gap-3 text-xs font-mono">
+                              <span class="text-gray-400">匹配: {{ metric.search_result_preview?.total_matches || 0 }}</span>
+                              <span class="text-gray-400">响应: {{ formatBytes(metric.search_result_preview?.response_length || 0) }}</span>
+                            </div>
+                          </div>
+                          
+                          <!-- 搜索结果片段列表 -->
+                          <div class="divide-y divide-slate-100 dark:divide-slate-700/50">
+                            <template v-if="metric.search_result_preview?.snippets?.length">
+                              <div 
+                                v-for="(snippet, i) in metric.search_result_preview.snippets" 
+                                :key="i"
+                                class="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors"
+                              >
+                                <!-- 文件路径 -->
+                                <div class="flex items-center gap-2 mb-2">
+                                  <div class="i-fa6-solid-file-code text-xs text-gray-400" />
+                                  <span class="text-xs font-mono text-blue-600 dark:text-blue-400 truncate" :title="snippet.file_path">
+                                    {{ snippet.file_path }}
+                                  </span>
+                                  <span v-if="snippet.line_number" class="text-[10px] text-gray-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
+                                    L{{ snippet.line_number }}
+                                  </span>
+                                </div>
+                                <!-- 代码片段 -->
+                                <div class="bg-slate-900 dark:bg-slate-950 rounded-lg p-3 overflow-x-auto">
+                                  <pre class="text-xs font-mono text-slate-300 whitespace-pre-wrap break-all">{{ snippet.snippet }}</pre>
+                                </div>
+                              </div>
+                            </template>
+                            <div v-else class="p-8 text-center text-gray-400">
+                              <div class="i-fa6-solid-inbox text-3xl mb-2 opacity-50" />
+                              <div class="text-sm">未获取到搜索结果预览</div>
+                            </div>
+                          </div>
+                        </div>
+                      </template>
+
+                      <!-- 无搜索指标时的占位 -->
+                      <div v-if="!speedTestResult.metrics.some(m => m.metric_type === 'search' && m.search_result_preview)" class="py-12 text-center text-gray-400">
+                        <div class="i-fa6-solid-search text-4xl mb-3 opacity-30" />
+                        <div class="text-sm font-medium mb-1">暂无搜索数据</div>
+                        <div class="text-xs opacity-70">运行包含语义搜索的测试后，将在此处展示搜索结果预览</div>
                       </div>
                     </div>
                   </n-tab-pane>

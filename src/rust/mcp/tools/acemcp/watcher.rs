@@ -46,7 +46,8 @@ impl WatcherManager {
 
     /// 为指定项目启动文件监听
     /// 如果已经在监听，则不重复启动
-    pub async fn start_watching(&self, project_root: String, config: AcemcpConfig) -> Result<()> {
+    /// debounce_ms: 防抖延迟（毫秒），默认为 180000 (3分钟)
+    pub async fn start_watching(&self, project_root: String, config: AcemcpConfig, debounce_ms: Option<u64>) -> Result<()> {
         // 检查全局开关
         if !self.is_auto_index_enabled() {
             log_debug!("全局自动索引已禁用，跳过启动文件监听");
@@ -73,9 +74,11 @@ impl WatcherManager {
         // 创建异步通道用于接收文件变更事件
         let (tx, mut rx) = mpsc::channel::<()>(100);
 
-        // 创建 debouncer（1.5 秒延迟）
+        // 创建 debouncer（使用配置的防抖延迟，默认 3 分钟）
+        let delay_ms = debounce_ms.unwrap_or(180_000);
+        log_important!(info, "文件监听防抖延迟: {}ms", delay_ms);
         let mut debouncer = new_debouncer(
-            Duration::from_millis(1500),
+            Duration::from_millis(delay_ms),
             None,
             move |result: DebounceEventResult| {
                 match result {

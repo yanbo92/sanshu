@@ -116,6 +116,7 @@ pub struct McpConfig {
     pub acemcp_max_lines_per_blob: Option<u32>, // acemcp最大行数/块
     pub acemcp_text_extensions: Option<Vec<String>>, // acemcp文件扩展名
     pub acemcp_exclude_patterns: Option<Vec<String>>, // acemcp排除模式
+    pub acemcp_watch_debounce_ms: Option<u64>, // 文件监听防抖延迟（毫秒），默认 180000 (3分钟)
     pub context7_api_key: Option<String>, // Context7 API密钥 (可选，免费使用时可为空)
 }
 
@@ -282,6 +283,7 @@ pub fn default_mcp_config() -> McpConfig {
         acemcp_max_lines_per_blob: None,
         acemcp_text_extensions: None,
         acemcp_exclude_patterns: None,
+        acemcp_watch_debounce_ms: None, // 使用默认值 180000ms (3分钟)
         context7_api_key: None,
     }
 }

@@ -88,6 +88,7 @@ pub fn build_tauri_app() -> Builder<tauri::Wry> {
             crate::mcp::tools::acemcp::commands::set_auto_index_enabled,
             crate::mcp::tools::acemcp::commands::get_watching_projects,
             crate::mcp::tools::acemcp::commands::is_project_watching,
+            crate::mcp::tools::acemcp::commands::start_project_watching,
             crate::mcp::tools::acemcp::commands::stop_project_watching,
             crate::mcp::tools::acemcp::commands::stop_all_watching,
             crate::mcp::tools::acemcp::commands::remove_acemcp_project_index,

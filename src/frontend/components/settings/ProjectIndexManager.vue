@@ -262,7 +262,8 @@ async function toggleWatching(projectRoot: string) {
       message.success('已停止监听项目')
     }
     else {
-      await invoke('trigger_acemcp_index_update', { projectRootPath: normalizedPath })
+      // 修正：调用启动监听命令而非手动索引
+      await invoke('start_project_watching', { projectRootPath: normalizedPath })
       message.success('已开启监听项目')
     }
     watchingProjects.value = await invoke<string[]>('get_watching_projects')

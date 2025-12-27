@@ -213,3 +213,36 @@ pub struct SpeedTestMetric {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub search_result_preview: Option<SearchResultPreview>,
 }
+
+// ============== 测速进度反馈 ==============
+
+/// 测速阶段状态
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum SpeedTestStageStatus {
+    /// 等待中
+    Pending,
+    /// 进行中
+    Running,
+    /// 已完成
+    Completed,
+    /// 失败
+    Failed,
+}
+
+/// 测速进度事件（用于前端实时展示）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SpeedTestProgress {
+    /// 阶段编号 (0-5)
+    pub stage: u8,
+    /// 阶段名称（中文，如 "初始化"、"Ping测试"）
+    pub stage_name: String,
+    /// 总体进度百分比 (0-100)
+    pub percentage: u8,
+    /// 阶段状态
+    pub status: SpeedTestStageStatus,
+    /// 阶段详情（关键指标摘要，如 "avg=236ms, 3/3"）
+    pub detail: Option<String>,
+    /// 子步骤名称（可选，用于更细粒度的进度，如 "代理 Ping"）
+    pub sub_step: Option<String>,
+}
+

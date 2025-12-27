@@ -6,8 +6,9 @@
  * 包含：代理配置、自动检测、测速、测速报告等功能
  */
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { useDialog, useMessage } from 'naive-ui';
-import { computed, ref } from 'vue';
+import { computed, onUnmounted, ref } from 'vue';
 
 // Props
 const props = defineProps<{
@@ -71,6 +72,19 @@ interface SpeedTestQueryDetail {
   error: string | null
 }
 
+// 测速阶段状态
+type SpeedTestStageStatus = 'Pending' | 'Running' | 'Completed' | 'Failed'
+
+// 测速进度事件数据
+interface SpeedTestProgress {
+  stage: number
+  stage_name: string
+  percentage: number
+  status: SpeedTestStageStatus
+  detail: string | null
+  sub_step: string | null
+}
+
 type IndexStatus = 'idle' | 'indexing' | 'synced' | 'failed'
 
 interface ProjectIndexStatusLite {
@@ -87,6 +101,8 @@ const detectedProxies = ref<DetectedProxy[]>([])
 const proxyTesting = ref(false)
 const speedTestResult = ref<SpeedTestResult | null>(null)
 const speedTestProgress = ref('')
+const speedTestProgressData = ref<SpeedTestProgress | null>(null)
+let unlistenSpeedTestProgress: (() => void) | null = null
 const speedTestMode = ref<'proxy' | 'direct' | 'compare'>('compare')
 const speedTestQuery = ref('代码搜索测试')
 const multiQuerySearchDetails = ref<SpeedTestQueryDetail[]>([])
@@ -108,6 +124,14 @@ const projectUploadMaxFiles = ref(200)
 const addProjectVisible = ref(false)
 const addProjectPath = ref('')
 const addProjectIndexing = ref(false)
+
+// 组件卸载时清理监听器
+onUnmounted(() => {
+  if (unlistenSpeedTestProgress) {
+    unlistenSpeedTestProgress()
+    unlistenSpeedTestProgress = null
+  }
+})
 
 // --- 计算属性 ---
 
@@ -413,8 +437,26 @@ async function runSpeedTest() {
   proxyTesting.value = true
   speedTestResult.value = null
   speedTestProgress.value = '正在准备测速...'
+  speedTestProgressData.value = null
   multiQuerySearchDetails.value = []
   multiQueryDetailsExpanded.value = false
+  
+  // 注册进度事件监听器
+  unlistenSpeedTestProgress = await listen<SpeedTestProgress>('speed_test_progress', (event) => {
+    const progress = event.payload
+    speedTestProgressData.value = progress
+    
+    // 构建进度文本
+    const statusIcon = progress.status === 'Running' ? '⏳' 
+      : progress.status === 'Completed' ? '✅' 
+      : progress.status === 'Failed' ? '❌' 
+      : '⏸️'
+    
+    const subStepText = progress.sub_step ? ` - ${progress.sub_step}` : ''
+    const detailText = progress.detail ? ` (${progress.detail})` : ''
+    
+    speedTestProgress.value = `${statusIcon} ${progress.stage_name}${subStepText}${detailText} [${progress.percentage}%]`
+  })
 
   try {
     const rawQueryCount = (speedTestQuery.value || '')
@@ -501,8 +543,14 @@ async function runSpeedTest() {
     message.error(`测速失败: ${err}`)
   }
   finally {
+    // 清理进度事件监听器
+    if (unlistenSpeedTestProgress) {
+      unlistenSpeedTestProgress()
+      unlistenSpeedTestProgress = null
+    }
     proxyTesting.value = false
     speedTestProgress.value = ''
+    speedTestProgressData.value = null
   }
 }
 
@@ -663,6 +711,24 @@ function getDiffColorClass(proxyMs: number | null, directMs: number | null): str
   if (proxyMs > directMs)
     return 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
   return 'bg-gray-100 dark:bg-gray-800 text-gray-500'
+}
+
+// 获取进度步骤状态（用于步骤指示器）
+function getStepStatus(stepName: string): 'pending' | 'current' | 'completed' {
+  const currentStage = speedTestProgressData.value?.stage ?? -1
+  const stageMap: Record<string, number> = {
+    '初始化': 0,
+    'Ping': 1,
+    '搜索': 2,
+    '单文件': 3,
+    '项目': 4,
+    '报告': 5,
+  }
+  const stepStage = stageMap[stepName] ?? -1
+  
+  if (stepStage < currentStage) return 'completed'
+  if (stepStage === currentStage) return 'current'
+  return 'pending'
 }
 
 // 格式化字节数为可读字符串
@@ -968,21 +1034,68 @@ function formatRelativeTime(timeStr: string | null): string {
                 {{ speedTestDisabledReason }}
               </n-tooltip>
 
-              <div v-if="proxyTesting" class="space-y-2">
-                <div class="flex justify-between text-xs text-gray-500">
-                  <span>诊断进度</span>
-                  <span class="font-mono">{{ speedTestMetricsForDisplay.length > 0 ? '50%' : '10%' }}</span>
+              <div v-if="proxyTesting" class="space-y-3">
+                <!-- 进度头部 -->
+                <div class="flex justify-between items-center text-xs">
+                  <span class="text-gray-500 font-medium">诊断进度</span>
+                  <span class="font-mono text-primary-600 dark:text-primary-400">
+                    {{ speedTestProgressData?.percentage ?? 0 }}%
+                  </span>
                 </div>
+                
+                <!-- 进度条 -->
                 <n-progress
                   type="line"
-                  :percentage="speedTestResult ? 100 : (speedTestMetricsForDisplay.length > 0 ? 50 : 20)"
+                  :percentage="speedTestProgressData?.percentage ?? 5"
                   :show-indicator="false"
-                  processing
-                  status="success"
-                  class="h-1.5"
+                  :processing="speedTestProgressData?.status === 'Running'"
+                  :status="speedTestProgressData?.status === 'Failed' ? 'error' : 'success'"
+                  class="h-2"
                 />
-                <div class="text-center text-xs text-gray-400 animate-pulse">
-                  {{ speedTestProgress || '正在建立连接...' }}
+                
+                <!-- 当前阶段信息 -->
+                <div class="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 space-y-1">
+                <div class="flex items-center gap-2 text-sm">
+                    <span 
+                      v-if="speedTestProgressData?.status === 'Running'" 
+                      class="i-fa6-solid-spinner animate-spin text-primary-500"
+                    />
+                    <span 
+                      v-else-if="speedTestProgressData?.status === 'Completed'" 
+                      class="i-fa6-solid-circle-check text-green-500"
+                    />
+                    <span 
+                      v-else-if="speedTestProgressData?.status === 'Failed'" 
+                      class="i-fa6-solid-circle-xmark text-red-500"
+                    />
+                    <span v-else class="i-fa6-regular-clock text-gray-400 dark:text-gray-500" />
+                    
+                    <span class="font-medium text-gray-700 dark:text-gray-200">
+                      {{ speedTestProgressData?.stage_name ?? '初始化' }}
+                    </span>
+                    <span v-if="speedTestProgressData?.sub_step" class="text-gray-400">
+                      - {{ speedTestProgressData.sub_step }}
+                    </span>
+                  </div>
+                  
+                  <div v-if="speedTestProgressData?.detail" class="text-xs text-gray-500 dark:text-gray-400 pl-6">
+                    {{ speedTestProgressData.detail }}
+                  </div>
+                </div>
+                
+                <!-- 进度步骤指示器 -->
+                <div class="flex justify-between px-1">
+                  <div v-for="step in ['初始化', 'Ping', '搜索', '单文件', '项目', '报告']" :key="step" class="flex flex-col items-center">
+                    <div 
+                      :class="[
+                        'w-2 h-2 rounded-full transition-all',
+                        getStepStatus(step) === 'completed' ? 'bg-green-500 scale-125' :
+                        getStepStatus(step) === 'current' ? 'bg-primary-500 animate-pulse scale-110' :
+                        'bg-gray-300 dark:bg-gray-600'
+                      ]"
+                    />
+                    <span class="text-[10px] text-gray-400 mt-1">{{ step }}</span>
+                  </div>
                 </div>
               </div>
             </div>

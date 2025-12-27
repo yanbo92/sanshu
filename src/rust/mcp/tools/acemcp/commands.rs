@@ -1,9 +1,9 @@
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
 use crate::config::{AppState, save_config};
 use crate::network::proxy::{ProxyDetector, ProxyInfo, ProxyType};
 use super::AcemcpTool;
-use super::types::{AcemcpRequest, ProjectIndexStatus, ProjectsIndexStatus, ProjectFilesStatus, DetectedProxy, ProxySpeedTestResult, SpeedTestMetric};
+use super::types::{AcemcpRequest, ProjectIndexStatus, ProjectsIndexStatus, ProjectFilesStatus, DetectedProxy, ProxySpeedTestResult, SpeedTestMetric, SpeedTestProgress, SpeedTestStageStatus};
 use reqwest;
 
 #[derive(Debug, serde::Deserialize)]
@@ -906,7 +906,8 @@ pub async fn detect_acemcp_proxy(extra_ports: Option<Vec<u16>>) -> Result<Vec<De
 /// 测试代理和直连模式下的网络延迟和搜索性能
 #[tauri::command]
 pub async fn test_acemcp_proxy_speed(
-    test_mode: String,        // "proxy" | "direct" | "compare"
+    app: AppHandle,               // 用于发送进度事件
+    test_mode: String,            // "proxy" | "direct" | "compare"
     proxy_host: Option<String>,
     proxy_port: Option<u16>,
     proxy_type: Option<String>,
@@ -920,6 +921,22 @@ pub async fn test_acemcp_proxy_speed(
 ) -> Result<ProxySpeedTestResult, String> {
     log::info!("🚀 [SpeedTest] 开始代理测速");
     log::info!("📋 [SpeedTest] 参数: mode={}, query={}, project={}", test_mode, test_query, project_root_path);
+    
+    // 进度发送辅助闭包
+    let emit_progress = |stage: u8, stage_name: &str, percentage: u8, status: SpeedTestStageStatus, detail: Option<&str>, sub_step: Option<&str>| {
+        let progress = SpeedTestProgress {
+            stage,
+            stage_name: stage_name.to_string(),
+            percentage,
+            status,
+            detail: detail.map(|s| s.to_string()),
+            sub_step: sub_step.map(|s| s.to_string()),
+        };
+        let _ = app.emit("speed_test_progress", &progress);
+    };
+    
+    // 阶段0: 开始初始化
+    emit_progress(0, "初始化", 0, SpeedTestStageStatus::Running, Some("正在加载配置..."), None);
     
     // 获取配置
     let (base_url, token, batch_size, max_lines_per_blob) = {
@@ -1035,6 +1052,11 @@ pub async fn test_acemcp_proxy_speed(
     log::info!("🔗 [SpeedTest] HTTP Client 初始化完成: proxy_client={}, direct_client={}", 
                proxy_client.is_some(), direct_client.is_some());
     
+    // 阶段0: 初始化完成
+    let file_count = project_files_status.as_ref().map(|p| p.files.len()).unwrap_or(0);
+    emit_progress(0, "初始化", 10, SpeedTestStageStatus::Completed, 
+                  Some(&format!("项目文件: {} 个, HTTP Client 就绪", file_count)), None);
+    
     // 1. Ping 测试 - 测量到 ACE 服务器的网络延迟
     let health_url = format!("{}/health", base_url);
     let mut ping_metric = SpeedTestMetric {
@@ -1050,8 +1072,14 @@ pub async fn test_acemcp_proxy_speed(
     log::info!("📡 [SpeedTest] === 阶段1: Ping 测试 ===");
     log::debug!("📡 [SpeedTest] Ping URL: {}", health_url);
     
+    // 阶段1: Ping 测试开始
+    emit_progress(1, "Ping 测试", 12, SpeedTestStageStatus::Running, 
+                  Some("正在测试网络连通性..."), None);
+    
     // 代理模式 Ping
     if test_proxy {
+        emit_progress(1, "Ping 测试", 15, SpeedTestStageStatus::Running, 
+                      Some("代理模式 Ping..."), Some("代理 Ping"));
         if let Some(ref client) = proxy_client {
             let rounds = 3usize;
             let mut ok: Vec<u64> = Vec::with_capacity(rounds);
@@ -1085,6 +1113,10 @@ pub async fn test_acemcp_proxy_speed(
             }
             log::info!("📡 [SpeedTest] 代理 Ping 完成: avg={}ms, success={}/{}", 
                        ping_metric.proxy_time_ms.unwrap_or(0), ok.len(), rounds);
+            
+            emit_progress(1, "Ping 测试", 20, SpeedTestStageStatus::Running, 
+                          Some(&format!("代理 Ping: avg={}ms, {}/{}", ping_metric.proxy_time_ms.unwrap_or(0), ok.len(), rounds)), 
+                          Some("代理 Ping 完成"));
         } else {
             ping_metric.success = false;
             append_error(&mut ping_metric.error, "代理 Ping 跳过：代理 client 未初始化".to_string());
@@ -1093,6 +1125,8 @@ pub async fn test_acemcp_proxy_speed(
     
     // 直连模式 Ping
     if test_direct {
+        emit_progress(1, "Ping 测试", 25, SpeedTestStageStatus::Running, 
+                      Some("直连模式 Ping..."), Some("直连 Ping"));
         let direct_client = direct_client.as_ref().ok_or_else(|| "直连 Ping 跳过：直连 client 未初始化".to_string())?;
         let rounds = 3usize;
         let mut ok: Vec<u64> = Vec::with_capacity(rounds);
@@ -1126,8 +1160,19 @@ pub async fn test_acemcp_proxy_speed(
         }
         log::info!("📡 [SpeedTest] 直连 Ping 完成: avg={}ms, success={}/{}", 
                    ping_metric.direct_time_ms.unwrap_or(0), ok.len(), rounds);
+        
+        emit_progress(1, "Ping 测试", 30, SpeedTestStageStatus::Running, 
+                      Some(&format!("直连 Ping: avg={}ms, {}/{}", ping_metric.direct_time_ms.unwrap_or(0), ok.len(), rounds)), 
+                      Some("直连 Ping 完成"));
     }
     metrics.push(ping_metric);
+    
+    // Ping 阶段完成
+    emit_progress(1, "Ping 测试", 35, SpeedTestStageStatus::Completed, 
+                  Some(&format!("代理: {}ms, 直连: {}ms", 
+                               metrics.last().and_then(|m| m.proxy_time_ms).unwrap_or(0),
+                               metrics.last().and_then(|m| m.direct_time_ms).unwrap_or(0))), 
+                  None);
     
     // 2. 语义搜索测试（支持多条查询：按换行/分号分隔）
     let search_url = format!("{}/agents/codebase-retrieval", base_url);
@@ -1181,6 +1226,11 @@ pub async fn test_acemcp_proxy_speed(
     log::info!("🔍 [SpeedTest] === 阶段2: 语义搜索测试 ===");
     log::info!("🔍 [SpeedTest] 搜索 URL: {}", search_url);
     log::info!("🔍 [SpeedTest] 查询数量: {} 条", queries.len());
+    
+    // 阶段2: 语义搜索开始
+    emit_progress(2, "语义搜索", 40, SpeedTestStageStatus::Running, 
+                  Some(&format!("查询数: {} 条, 索引: {} blobs", queries.len(), blob_names.len())), 
+                  None);
 
     for q in queries {
         let display_q = if q.len() > 30 {
@@ -1284,6 +1334,10 @@ pub async fn test_acemcp_proxy_speed(
 
         metrics.push(search_metric);
     }
+    
+    // 阶段2: 语义搜索完成
+    emit_progress(2, "语义搜索", 55, SpeedTestStageStatus::Completed, 
+                  Some("所有搜索查询完成"), None);
 
     // 3. 单文件上传测试（真实走 /batch-upload）
     let mut upload_single_metric = SpeedTestMetric {
@@ -1297,6 +1351,10 @@ pub async fn test_acemcp_proxy_speed(
     };
     
     log::info!("📤 [SpeedTest] === 阶段3: 单文件上传测试 ===");
+    
+    // 阶段3: 单文件上传开始
+    emit_progress(3, "单文件上传", 60, SpeedTestStageStatus::Running, 
+                  Some("正在上传测试文件..."), None);
 
     if let Some(err) = project_files_error.clone() {
         upload_single_metric.success = false;
@@ -1355,6 +1413,13 @@ pub async fn test_acemcp_proxy_speed(
         }
     }
     metrics.push(upload_single_metric);
+    
+    // 阶段3: 单文件上传完成
+    emit_progress(3, "单文件上传", 70, SpeedTestStageStatus::Completed, 
+                  Some(&format!("代理: {}ms, 直连: {}ms", 
+                               metrics.last().and_then(|m| m.proxy_time_ms).unwrap_or(0),
+                               metrics.last().and_then(|m| m.direct_time_ms).unwrap_or(0))), 
+                  None);
 
     // 4. 项目上传测试（按策略：采样/全量）
     let mut upload_project_metric = SpeedTestMetric {
@@ -1370,6 +1435,11 @@ pub async fn test_acemcp_proxy_speed(
     log::info!("📦 [SpeedTest] === 阶段4: 项目上传测试 ===");
     log::info!("📦 [SpeedTest] 上传模式: {}, 文件上限: {:?}", 
                project_upload_mode, project_upload_max_files_limit);
+    
+    // 阶段4: 项目上传开始
+    emit_progress(4, "项目上传", 75, SpeedTestStageStatus::Running, 
+                  Some(&format!("模式: {}, 文件上限: {:?}", project_upload_mode, project_upload_max_files_limit)), 
+                  None);
 
     if let Some(err) = project_files_error.clone() {
         upload_project_metric.success = false;
@@ -1463,6 +1533,17 @@ pub async fn test_acemcp_proxy_speed(
     }
     metrics.push(upload_project_metric);
     
+    // 阶段4: 项目上传完成
+    emit_progress(4, "项目上传", 90, SpeedTestStageStatus::Completed, 
+                  Some(&format!("代理: {}ms, 直连: {}ms", 
+                               metrics.last().and_then(|m| m.proxy_time_ms).unwrap_or(0),
+                               metrics.last().and_then(|m| m.direct_time_ms).unwrap_or(0))), 
+                  None);
+    
+    // 阶段5: 生成报告
+    emit_progress(5, "生成报告", 95, SpeedTestStageStatus::Running, 
+                  Some("正在生成诊断报告..."), None);
+    
     log::info!("📊 [SpeedTest] === 测试完成，生成报告 ===");
     log::info!("📊 [SpeedTest] 总指标数: {}", metrics.len());
     
@@ -1519,6 +1600,11 @@ pub async fn test_acemcp_proxy_speed(
                    m.direct_time_ms.map_or("-".to_string(), |v| v.to_string()),
                    m.success);
     }
+    
+    // 阶段5: 全部完成
+    let final_status = if all_success { SpeedTestStageStatus::Completed } else { SpeedTestStageStatus::Failed };
+    emit_progress(5, "生成报告", 100, final_status, 
+                  Some(&format!("成功率: {}/{}", ok, total)), None);
     
     Ok(result)
 }

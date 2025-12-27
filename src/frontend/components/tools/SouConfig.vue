@@ -510,13 +510,13 @@ defineExpose({ saveConfig })
               <div class="flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
                 <div class="flex items-center gap-4">
                   <!-- 状态图标 -->
-                  <div 
+                  <div
                     class="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
                     :class="config.proxy_enabled ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'"
                   >
                     <div class="i-carbon-network-3 text-xl" />
                   </div>
-                  
+
                   <div>
                     <div class="font-medium text-base flex items-center gap-2">
                       代理服务
@@ -645,7 +645,9 @@ defineExpose({ saveConfig })
                       <div :class="config.proxy_enabled ? 'i-carbon-checkmark-outline text-emerald-500' : 'i-carbon-close-outline text-slate-400'" />
                     </div>
                     <div class="status-info">
-                      <div class="status-title">代理状态</div>
+                      <div class="status-title">
+                        代理状态
+                      </div>
                       <div class="status-value">
                         {{ config.proxy_enabled ? '已启用' : '未启用' }}
                       </div>
@@ -661,7 +663,9 @@ defineExpose({ saveConfig })
                       <div class="i-carbon-folder-shared text-blue-500" />
                     </div>
                     <div class="status-info">
-                      <div class="status-title">索引项目</div>
+                      <div class="status-title">
+                        索引项目
+                      </div>
                       <div class="status-value">
                         {{ debugProjectOptions.length }} 个
                       </div>
@@ -674,7 +678,9 @@ defineExpose({ saveConfig })
                       <div :class="debugResultData?.success ? 'i-carbon-checkmark-filled text-emerald-500' : (debugResultData === null ? 'i-carbon-pending text-slate-400' : 'i-carbon-warning-alt text-amber-500')" />
                     </div>
                     <div class="status-info">
-                      <div class="status-title">上次调试</div>
+                      <div class="status-title">
+                        上次调试
+                      </div>
                       <div class="status-value">
                         {{ debugResultData ? (debugResultData.success ? '成功' : '失败') : '未执行' }}
                       </div>
@@ -788,7 +794,9 @@ defineExpose({ saveConfig })
                               <div class="metric-value" :class="debugResultData.success ? 'text-emerald-500' : 'text-red-500'">
                                 {{ debugResultData.total_duration_ms }}ms
                               </div>
-                              <div class="metric-label">总耗时</div>
+                              <div class="metric-label">
+                                总耗时
+                              </div>
                             </div>
                           </n-grid-item>
                           <n-grid-item :span="4">
@@ -796,7 +804,9 @@ defineExpose({ saveConfig })
                               <div class="metric-value">
                                 {{ debugResultData.result_count ?? '-' }}
                               </div>
-                              <div class="metric-label">结果数</div>
+                              <div class="metric-label">
+                                结果数
+                              </div>
                             </div>
                           </n-grid-item>
                           <n-grid-item :span="4">
@@ -804,7 +814,9 @@ defineExpose({ saveConfig })
                               <n-tag :type="debugResultData.success ? 'success' : 'error'" size="small">
                                 {{ debugResultData.success ? '成功' : '失败' }}
                               </n-tag>
-                              <div class="metric-label">状态</div>
+                              <div class="metric-label">
+                                状态
+                              </div>
                             </div>
                           </n-grid-item>
                         </n-grid>

@@ -137,7 +137,8 @@ const multiQuerySearchSummary = computed(() => {
 })
 
 const currentProjectInfo = computed(() => {
-  if (!speedTestProjectRoot.value) return null
+  if (!speedTestProjectRoot.value)
+    return null
   return indexedProjects.value.find(p => p.project_root === speedTestProjectRoot.value)
 })
 
@@ -265,25 +266,25 @@ function confirmProxySelection() {
 async function loadIndexedProjectsForSpeedTest() {
   projectPickerLoading.value = true
   console.log('[SouProxy] 🔄 开始加载已索引项目列表...')
-  
+
   try {
     const statusResult = await invoke<{ projects: Record<string, ProjectIndexStatusLite> }>('get_all_acemcp_index_status')
-    
+
     // 详细日志：打印原始返回数据
     console.log('[SouProxy] 📦 后端返回原始数据:', statusResult)
     console.log('[SouProxy] 📊 项目总数（原始）:', Object.keys(statusResult.projects || {}).length)
-    
+
     const allProjects = Object.values(statusResult.projects || {})
     console.log('[SouProxy] 📋 所有项目列表:', allProjects.map(p => ({
       root: p.project_root,
       status: p.status,
       total_files: p.total_files,
-      last_success_time: p.last_success_time
+      last_success_time: p.last_success_time,
     })))
-    
+
     // 过滤条件：保留已索引文件数 > 0 的项目
     // 注意：如果项目正在索引中（status: indexing），可能 total_files 还未更新
-    const list = allProjects.filter(p => {
+    const list = allProjects.filter((p) => {
       const hasFiles = (p.total_files || 0) > 0
       console.log(`[SouProxy] 📁 项目 ${getProjectName(p.project_root)}: total_files=${p.total_files}, status=${p.status}, 通过过滤=${hasFiles}`)
       return hasFiles
@@ -291,7 +292,7 @@ async function loadIndexedProjectsForSpeedTest() {
 
     console.log('[SouProxy] ✅ 过滤后项目数:', list.length)
     console.log('[SouProxy] 📝 过滤后项目列表:', list.map(p => getProjectName(p.project_root)))
-    
+
     indexedProjects.value = list
   }
   catch (e) {
@@ -606,8 +607,9 @@ async function downloadSpeedTestReport() {
 
 // 辅助函数
 function getProjectName(projectRoot: string): string {
-  const parts = (projectRoot || '').replace(/\\/g, '/').split('/').filter(Boolean)
-  return parts.length > 0 ? parts[parts.length - 1] : projectRoot
+  const normalizedPath = normalizePathForDisplay(projectRoot)
+  const parts = (normalizedPath || '').replace(/\\/g, '/').split('/').filter(Boolean)
+  return parts.length > 0 ? parts[parts.length - 1] : normalizedPath
 }
 
 function formatIndexTime(ts: string | null): string {
@@ -648,8 +650,17 @@ function getDiffColorClass(proxyMs: number | null, directMs: number | null): str
   return 'bg-gray-100 dark:bg-gray-800 text-gray-500'
 }
 
+// 规范化路径显示，移除Windows长路径前缀
+function normalizePathForDisplay(path: string): string {
+  if (!path)
+    return path
+  // 移除 Windows 长路径前缀 \\?\ 或 //?/
+  return path.replace(/^\\\\\?\\|^\/\?\//, '')
+}
+
 function formatRelativeTime(timeStr: string | null): string {
-  if (!timeStr) return '从未'
+  if (!timeStr)
+    return '从未'
   try {
     const date = new Date(timeStr)
     const now = new Date()
@@ -659,12 +670,17 @@ function formatRelativeTime(timeStr: string | null): string {
     const diffHour = Math.floor(diffMin / 60)
     const diffDay = Math.floor(diffHour / 24)
 
-    if (diffSec < 60) return '刚刚'
-    if (diffMin < 60) return `${diffMin} 分钟前`
-    if (diffHour < 24) return `${diffHour} 小时前`
-    if (diffDay < 30) return `${diffDay} 天前`
+    if (diffSec < 60)
+      return '刚刚'
+    if (diffMin < 60)
+      return `${diffMin} 分钟前`
+    if (diffHour < 24)
+      return `${diffHour} 小时前`
+    if (diffDay < 30)
+      return `${diffDay} 天前`
     return date.toLocaleDateString()
-  } catch {
+  }
+  catch {
     return '未知'
   }
 }
@@ -838,9 +854,9 @@ function formatRelativeTime(timeStr: string | null): string {
                     切换
                   </n-button>
                 </div>
-                
+
                 <!-- 已选择状态 -->
-                <div 
+                <div
                   v-if="currentProjectInfo"
                   class="group relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 cursor-pointer transition-all hover:border-primary-400 hover:shadow-md"
                   @click="openProjectPicker"
@@ -848,7 +864,7 @@ function formatRelativeTime(timeStr: string | null): string {
                   <div class="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
                     <div class="i-fa6-solid-folder-open text-6xl text-primary-500" />
                   </div>
-                  
+
                   <div class="relative z-10 flex items-start gap-3">
                     <div class="w-10 h-10 rounded-lg bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center flex-shrink-0 text-primary-600 dark:text-primary-400">
                       <div class="i-fa6-solid-code" />
@@ -858,7 +874,7 @@ function formatRelativeTime(timeStr: string | null): string {
                         {{ getProjectName(currentProjectInfo.project_root) }}
                       </div>
                       <div class="text-xs text-gray-500 truncate font-mono mt-0.5" :title="currentProjectInfo.project_root">
-                        {{ currentProjectInfo.project_root }}
+                        {{ normalizePathForDisplay(currentProjectInfo.project_root) }}
                       </div>
                       <div class="flex items-center gap-3 mt-2 text-xs text-gray-400">
                         <span class="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/50 px-1.5 py-0.5 rounded">
@@ -875,13 +891,15 @@ function formatRelativeTime(timeStr: string | null): string {
                 </div>
 
                 <!-- 未选择状态 -->
-                <div 
+                <div
                   v-else
                   class="border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-primary-400 dark:hover:border-primary-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all text-gray-400 hover:text-primary-500 group"
                   @click="openProjectPicker"
                 >
                   <div class="i-fa6-solid-folder-plus text-3xl mb-2 group-hover:scale-110 transition-transform" />
-                  <div class="text-sm font-medium">点击选择测试项目</div>
+                  <div class="text-sm font-medium">
+                    点击选择测试项目
+                  </div>
                 </div>
               </div>
 
@@ -929,10 +947,10 @@ function formatRelativeTime(timeStr: string | null): string {
                   <span>诊断进度</span>
                   <span class="font-mono">{{ speedTestMetricsForDisplay.length > 0 ? '50%' : '10%' }}</span>
                 </div>
-                <n-progress 
-                  type="line" 
-                  :percentage="speedTestResult ? 100 : (speedTestMetricsForDisplay.length > 0 ? 50 : 20)" 
-                  :show-indicator="false" 
+                <n-progress
+                  type="line"
+                  :percentage="speedTestResult ? 100 : (speedTestMetricsForDisplay.length > 0 ? 50 : 20)"
+                  :show-indicator="false"
                   processing
                   status="success"
                   class="h-1.5"
@@ -951,7 +969,7 @@ function formatRelativeTime(timeStr: string | null): string {
                 class="flex-1 flex flex-col items-center justify-center p-8 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/20"
               >
                 <div class="relative mb-6">
-                  <div class="absolute inset-0 bg-blue-500/20 blur-xl rounded-full"></div>
+                  <div class="absolute inset-0 bg-blue-500/20 blur-xl rounded-full" />
                   <div class="relative i-fa6-solid-chart-simple text-6xl text-slate-300 dark:text-slate-600" />
                 </div>
                 <div class="text-center max-w-xs">
@@ -984,13 +1002,13 @@ function formatRelativeTime(timeStr: string | null): string {
               <div v-if="speedTestResult" class="flex-1 flex flex-col bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden shadow-sm">
                 <!-- 结果头部 Banner -->
                 <div class="relative overflow-hidden p-5 flex items-center justify-between border-b border-slate-100 dark:border-slate-700/50">
-                   <!-- 背景装饰 -->
-                   <div 
+                  <!-- 背景装饰 -->
+                  <div
                     class="absolute inset-0 opacity-10 pointer-events-none"
-                    :class="speedTestResult.success ? 'bg-green-500' : 'bg-amber-500'" 
-                   />
-                   
-                   <div class="relative flex items-center gap-4">
+                    :class="speedTestResult.success ? 'bg-green-500' : 'bg-amber-500'"
+                  />
+
+                  <div class="relative flex items-center gap-4">
                     <div
                       class="w-12 h-12 rounded-full flex items-center justify-center shadow-sm text-2xl"
                       :class="speedTestResult.success
@@ -1004,7 +1022,7 @@ function formatRelativeTime(timeStr: string | null): string {
                         {{ speedTestResult.success ? '测试通过' : '发现问题' }}
                       </div>
                       <div class="text-xs text-gray-500 font-mono">
-                         TIME: {{ formatSpeedTestTime(speedTestResult.timestamp) }}
+                        TIME: {{ formatSpeedTestTime(speedTestResult.timestamp) }}
                       </div>
                     </div>
                   </div>
@@ -1014,7 +1032,9 @@ function formatRelativeTime(timeStr: string | null): string {
                       复制报告
                     </n-button>
                     <n-button size="small" secondary @click="downloadSpeedTestReport">
-                      <template #icon><div class="i-fa6-solid-download" /></template>
+                      <template #icon>
+                        <div class="i-fa6-solid-download" />
+                      </template>
                     </n-button>
                   </div>
                 </div>
@@ -1024,8 +1044,8 @@ function formatRelativeTime(timeStr: string | null): string {
                   <!-- Tab 1: 核心指标 -->
                   <n-tab-pane name="overview" tab="📊 核心指标">
                     <div class="space-y-4">
-                       <!-- 建议 Box -->
-                       <div v-if="speedTestResult.recommendation" class="flex gap-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-700/30 border border-slate-100 dark:border-slate-700">
+                      <!-- 建议 Box -->
+                      <div v-if="speedTestResult.recommendation" class="flex gap-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-700/30 border border-slate-100 dark:border-slate-700">
                         <div class="i-fa6-solid-wand-magic-sparkles text-purple-500 mt-1" />
                         <div class="text-sm text-gray-700 text-gray-200">
                           <span class="font-bold block mb-1">智能诊断建议</span>
@@ -1050,26 +1070,30 @@ function formatRelativeTime(timeStr: string | null): string {
                           <!-- 数据 -->
                           <div class="flex items-end justify-between font-mono text-sm">
                             <div v-if="speedTestResult.mode !== 'direct'" class="flex-1">
-                              <div class="text-xs text-gray-400 mb-1">Proxy</div>
+                              <div class="text-xs text-gray-400 mb-1">
+                                Proxy
+                              </div>
                               <div class="text-xl font-bold" :class="metric.proxy_time_ms ? 'text-blue-600 dark:text-blue-400' : 'text-gray-300'">
                                 {{ metric.proxy_time_ms ?? '-' }}<span class="text-xs font-normal text-gray-400">ms</span>
                               </div>
                             </div>
 
                             <div v-if="speedTestResult.mode === 'compare'" class="px-2 pb-1">
-                               <div class="text-xs font-bold px-2 py-0.5 rounded-full" :class="getDiffColorClass(metric.proxy_time_ms, metric.direct_time_ms)">
-                                  {{ calcDiff(metric.proxy_time_ms, metric.direct_time_ms) }}
-                               </div>
+                              <div class="text-xs font-bold px-2 py-0.5 rounded-full" :class="getDiffColorClass(metric.proxy_time_ms, metric.direct_time_ms)">
+                                {{ calcDiff(metric.proxy_time_ms, metric.direct_time_ms) }}
+                              </div>
                             </div>
 
                             <div v-if="speedTestResult.mode !== 'proxy'" class="flex-1 text-right">
-                              <div class="text-xs text-gray-400 mb-1">Direct</div>
+                              <div class="text-xs text-gray-400 mb-1">
+                                Direct
+                              </div>
                               <div class="text-xl font-bold" :class="metric.direct_time_ms ? 'text-purple-600 dark:text-purple-400' : 'text-gray-300'">
                                 {{ metric.direct_time_ms ?? '-' }}<span class="text-xs font-normal text-gray-400">ms</span>
                               </div>
                             </div>
                           </div>
-                          
+
                           <!-- 错误提示 -->
                           <div v-if="metric.error" class="mt-3 text-xs text-red-500 bg-red-50 dark:bg-red-900/10 p-2 rounded">
                             {{ metric.error }}
@@ -1079,19 +1103,21 @@ function formatRelativeTime(timeStr: string | null): string {
 
                       <!-- 搜索详情列表 -->
                       <div v-if="multiQuerySearchSummary" class="mt-4">
-                         <div class="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">Search Queries</div>
-                         <div class="space-y-2">
-                            <div v-for="(d, i) in multiQuerySearchDetails" :key="i" class="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-700/30 border border-slate-100 dark:border-slate-700">
-                               <div class="flex items-center gap-2 truncate flex-1">
-                                  <div class="i-fa6-solid-terminal text-gray-400 text-xs" />
-                                  <span class="text-xs font-mono truncate" :title="d.query">{{ d.query }}</span>
-                               </div>
-                               <div class="flex gap-3 text-xs font-mono ml-4">
-                                  <span v-if="d.proxy_time_ms" class="text-blue-600">{{ d.proxy_time_ms }}ms</span>
-                                  <span v-if="d.direct_time_ms" class="text-purple-600">{{ d.direct_time_ms }}ms</span>
-                               </div>
+                        <div class="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">
+                          Search Queries
+                        </div>
+                        <div class="space-y-2">
+                          <div v-for="(d, i) in multiQuerySearchDetails" :key="i" class="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-700/30 border border-slate-100 dark:border-slate-700">
+                            <div class="flex items-center gap-2 truncate flex-1">
+                              <div class="i-fa6-solid-terminal text-gray-400 text-xs" />
+                              <span class="text-xs font-mono truncate" :title="d.query">{{ d.query }}</span>
                             </div>
-                         </div>
+                            <div class="flex gap-3 text-xs font-mono ml-4">
+                              <span v-if="d.proxy_time_ms" class="text-blue-600">{{ d.proxy_time_ms }}ms</span>
+                              <span v-if="d.direct_time_ms" class="text-purple-600">{{ d.direct_time_ms }}ms</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </n-tab-pane>
@@ -1105,35 +1131,39 @@ function formatRelativeTime(timeStr: string | null): string {
 
                       <div>
                         <div class="flex items-center justify-between mb-2">
-                           <span class="text-xs font-bold text-gray-500">REQUEST CONTEXT</span>
-                           <n-tag size="tiny">JSON</n-tag>
+                          <span class="text-xs font-bold text-gray-500">REQUEST CONTEXT</span>
+                          <n-tag size="tiny">
+                            JSON
+                          </n-tag>
                         </div>
                         <div class="bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-1">
-                           <n-code 
-                              :code="JSON.stringify({
-                                mode: speedTestMode, 
-                                query: speedTestQuery,
-                                project: currentProjectInfo ? { root: currentProjectInfo.project_root, files: currentProjectInfo.total_files } : null,
-                                timestamp: new Date().toISOString()
-                              }, null, 2)" 
-                              language="json" 
-                              class="text-xs font-mono"
-                              style="max-height: 200px; overflow: auto;"
-                            />
+                          <n-code
+                            :code="JSON.stringify({
+                              mode: speedTestMode,
+                              query: speedTestQuery,
+                              project: currentProjectInfo ? { root: currentProjectInfo.project_root, files: currentProjectInfo.total_files } : null,
+                              timestamp: new Date().toISOString(),
+                            }, null, 2)"
+                            language="json"
+                            class="text-xs font-mono"
+                            style="max-height: 200px; overflow: auto;"
+                          />
                         </div>
                       </div>
 
                       <div>
                         <div class="flex items-center justify-between mb-2">
-                           <span class="text-xs font-bold text-gray-500">RESPONSE METRICS (RAW)</span>
-                           <n-button size="tiny" text type="primary" @click="copySpeedTestReport">复制完整JSON</n-button>
+                          <span class="text-xs font-bold text-gray-500">RESPONSE METRICS (RAW)</span>
+                          <n-button size="tiny" text type="primary" @click="copySpeedTestReport">
+                            复制完整JSON
+                          </n-button>
                         </div>
                         <div class="bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-1">
-                           <n-code 
-                              :code="JSON.stringify(speedTestResult, null, 2)" 
-                              language="json" 
-                              class="text-xs font-mono"
-                            />
+                          <n-code
+                            :code="JSON.stringify(speedTestResult, null, 2)"
+                            language="json"
+                            class="text-xs font-mono"
+                          />
                         </div>
                       </div>
                     </div>
@@ -1225,7 +1255,7 @@ function formatRelativeTime(timeStr: string | null): string {
       </template>
     </n-modal>
 
-      <!-- 子弹窗：项目选择器 -->
+    <!-- 子弹窗：项目选择器 -->
     <n-modal v-model:show="projectPickerVisible" preset="card" style="width: 700px" size="medium" :bordered="false" class="custom-picker-modal">
       <template #header>
         <div class="flex items-center gap-3">
@@ -1263,38 +1293,38 @@ function formatRelativeTime(timeStr: string | null): string {
           @click="projectPickerSelected = p.project_root"
         >
           <!-- 选中时的扫描线动画 -->
-          <div v-if="projectPickerSelected === p.project_root" class="absolute inset-0 bg-gradient-to-r from-transparent via-primary-500/10 to-transparent skew-x-12 translate-x-[-150%] animate-[shimmer_2s_infinite]"></div>
+          <div v-if="projectPickerSelected === p.project_root" class="absolute inset-0 bg-gradient-to-r from-transparent via-primary-500/10 to-transparent skew-x-12 translate-x-[-150%] animate-[shimmer_2s_infinite]" />
 
           <div class="flex justify-between items-start z-10">
-             <div class="flex items-center gap-2 mr-2 min-w-0">
-               <!-- 图标：使用高亮颜色增强视觉效果 -->
-               <div class="i-fa6-solid-code-branch text-primary-500 dark:text-primary-400 group-hover:text-primary-600 dark:group-hover:text-primary-300 transition-colors" />
-               <!-- 标题文字：使用高对比度颜色确保清晰可读 -->
-               <div class="font-bold text-sm truncate text-gray-800 text-gray-100" :title="getProjectName(p.project_root)">
-                 {{ getProjectName(p.project_root) }}
-               </div>
-             </div>
-             <!-- Checkbox 样式的选择指示器 -->
-             <div 
-               class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all"
-               :class="projectPickerSelected === p.project_root ? 'bg-primary-500 border-primary-500 scale-110' : 'border-gray-300 dark:border-gray-600'"
-             >
-                <div v-if="projectPickerSelected === p.project_root" class="i-fa6-solid-check text-white text-[10px]" />
-             </div>
+            <div class="flex items-center gap-2 mr-2 min-w-0">
+              <!-- 图标：使用高亮颜色增强视觉效果 -->
+              <div class="i-fa6-solid-code-branch text-primary-500 dark:text-primary-400 group-hover:text-primary-600 dark:group-hover:text-primary-300 transition-colors" />
+              <!-- 标题文字：使用高对比度颜色确保清晰可读 -->
+              <div class="font-bold text-sm truncate text-gray-800 text-gray-100" :title="getProjectName(p.project_root)">
+                {{ getProjectName(p.project_root) }}
+              </div>
+            </div>
+            <!-- Checkbox 样式的选择指示器 -->
+            <div
+              class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all"
+              :class="projectPickerSelected === p.project_root ? 'bg-primary-500 border-primary-500 scale-110' : 'border-gray-300 dark:border-gray-600'"
+            >
+              <div v-if="projectPickerSelected === p.project_root" class="i-fa6-solid-check text-white text-[10px]" />
+            </div>
           </div>
 
           <div class="text-xs text-gray-400 font-mono truncate z-10" :title="p.project_root">
-            {{ p.project_root }}
+            {{ normalizePathForDisplay(p.project_root) }}
           </div>
 
           <div class="mt-auto pt-3 flex items-center justify-between text-xs z-10">
             <span class="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300">
-               <div class="i-fa6-solid-file" />
-               {{ p.total_files }}
+              <div class="i-fa6-solid-file" />
+              {{ p.total_files }}
             </span>
             <span class="text-gray-400 flex items-center gap-1">
-               <div class="i-fa6-regular-clock" />
-               {{ formatRelativeTime(p.last_success_time) }}
+              <div class="i-fa6-regular-clock" />
+              {{ formatRelativeTime(p.last_success_time) }}
             </span>
           </div>
         </div>
@@ -1302,8 +1332,12 @@ function formatRelativeTime(timeStr: string | null): string {
         <!-- 空状态 -->
         <div v-if="indexedProjects.length === 0" class="col-span-full py-12 text-center flex flex-col items-center justify-center opacity-60">
           <div class="i-fa6-solid-folder-open text-5xl text-slate-300 mb-4" />
-          <div class="text-base font-medium">暂无可用项目</div>
-          <div class="text-xs mt-2">请先添加项目并建立索引</div>
+          <div class="text-base font-medium">
+            暂无可用项目
+          </div>
+          <div class="text-xs mt-2">
+            请先添加项目并建立索引
+          </div>
         </div>
       </div>
 

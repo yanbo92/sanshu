@@ -35,7 +35,8 @@ async function toggleTool(toolId: string) {
       needsReconnect.value = true
     }
     message.warning('MCP工具配置已更新，请在MCP客户端中重连服务')
-  } catch (err) {
+  }
+  catch (err) {
     message.error(`更新MCP工具状态失败: ${err}`)
   }
 }
@@ -50,7 +51,8 @@ function openToolConfig(toolId: string) {
 onMounted(async () => {
   try {
     await loadMcpTools()
-  } catch (err) {
+  }
+  catch (err) {
     message.error(`加载MCP工具配置失败: ${err}`)
   }
 })
@@ -59,16 +61,15 @@ onMounted(async () => {
 <template>
   <div class="max-w-4xl mx-auto tab-content p-4">
     <n-space vertical size="large">
-      
       <!-- 重连提示 -->
       <transition name="slide-down">
-        <n-alert 
-          v-if="needsReconnect" 
-          title="需要重连MCP服务" 
-          type="warning" 
-          closable 
-          @close="needsReconnect = false" 
+        <n-alert
+          v-if="needsReconnect"
+          title="需要重连MCP服务"
+          type="warning"
+          closable
           class="reconnect-alert"
+          @close="needsReconnect = false"
         >
           <template #icon>
             <div class="i-carbon-connection-signal text-lg" />
@@ -97,21 +98,21 @@ onMounted(async () => {
       <!-- 工具卡片网格 -->
       <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div
-          v-for="tool in mcpTools" 
-          :key="tool.id" 
+          v-for="tool in mcpTools"
+          :key="tool.id"
           class="tool-card group"
           :class="{ 'tool-card--disabled': !tool.enabled }"
         >
           <!-- 顶部装饰线 -->
           <div class="card-top-border" />
-          
+
           <div class="card-content">
             <!-- 图标区域 -->
             <div
               class="tool-icon-wrapper"
               :class="[tool.icon_bg, tool.dark_icon_bg]"
             >
-              <div :class="[tool.icon, 'text-2xl text-white']" />
+              <div class="text-2xl text-white" :class="[tool.icon]" />
             </div>
 
             <!-- 内容区域 -->
@@ -121,59 +122,65 @@ onMounted(async () => {
                   {{ tool.name }}
                 </div>
                 <!-- 状态徽章 -->
-                <n-tag 
-                  v-if="!tool.can_disable" 
-                  type="info" 
-                  size="small" 
-                  round 
+                <n-tag
+                  v-if="!tool.can_disable"
+                  type="info"
+                  size="small"
+                  round
                   :bordered="false"
                 >
                   核心
                 </n-tag>
-                <n-tag 
-                  v-else-if="tool.enabled" 
-                  type="success" 
-                  size="small" 
-                  round 
+                <n-tag
+                  v-else-if="tool.enabled"
+                  type="success"
+                  size="small"
+                  round
                   :bordered="false"
                 >
                   启用
                 </n-tag>
-                <n-tag 
-                  v-else 
-                  type="default" 
-                  size="small" 
-                  round 
+                <n-tag
+                  v-else
+                  type="default"
+                  size="small"
+                  round
                   :bordered="false"
                 >
                   禁用
                 </n-tag>
               </div>
-              
+
               <div class="tool-description">
                 {{ tool.description }}
               </div>
 
               <!-- 操作区域 -->
               <div class="tool-actions">
-                <n-button 
-                  v-if="tool.can_disable && tool.has_config" 
-                  size="tiny" 
+                <n-button
+                  v-if="tool.can_disable && tool.has_config"
+                  size="tiny"
                   secondary
                   @click="openToolConfig(tool.id)"
                 >
-                  <template #icon><div class="i-carbon-settings" /></template>
+                  <template #icon>
+                    <div class="i-carbon-settings" />
+                  </template>
                   配置
                 </n-button>
                 <div class="flex-1" />
                 <n-switch
-                  v-if="tool.can_disable" 
-                  :value="tool.enabled" 
+                  v-if="tool.can_disable"
+                  :value="tool.enabled"
                   size="small"
                   @update:value="toggleTool(tool.id)"
                 >
-                  <template #checked-icon><div class="i-carbon-checkmark" /></template>
-                  <template #unchecked-icon><div class="i-carbon-close" /></template>
+                  <template #checked-icon>
+                    <div class="i-carbon-checkmark" />
+                  </template>
+                  <template #unchecked-icon>
+                    <div class="i-carbon-close" />
+                  </template>
                 </n-switch>
               </div>
             </div>
@@ -206,7 +213,9 @@ onMounted(async () => {
         <Context7Config v-else-if="currentToolId === 'context7'" :active="showToolConfigModal" />
         <div v-else class="empty-config">
           <div class="i-carbon-settings text-5xl mb-3 opacity-20" />
-          <div class="text-sm opacity-60">暂无高级配置项</div>
+          <div class="text-sm opacity-60">
+            暂无高级配置项
+          </div>
         </div>
       </div>
     </n-modal>
@@ -240,13 +249,13 @@ onMounted(async () => {
 /* 悬停效果 */
 .tool-card:hover {
   transform: translateY(-2px);
-  box-shadow: 
+  box-shadow:
     0 8px 25px -5px rgba(20, 184, 166, 0.15),
     0 0 20px -5px rgba(20, 184, 166, 0.1);
 }
 
 :root.dark .tool-card:hover {
-  box-shadow: 
+  box-shadow:
     0 8px 25px -5px rgba(20, 184, 166, 0.25),
     0 0 20px -5px rgba(20, 184, 166, 0.15);
 }

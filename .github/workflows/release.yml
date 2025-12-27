@@ -31,12 +31,12 @@ jobs:
     name: 准备发布
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # 需要写入权限来推送 Tag
+      contents: write # 需要写入权限来推送 Tag
     outputs:
       version: ${{ steps.determine_version.outputs.version }}
       tag_name: ${{ steps.determine_version.outputs.tag_name }}
       should_build: ${{ steps.check_trigger.outputs.should_build }}
-    
+
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -55,7 +55,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             # --- 手动触发逻辑：计算新版本 ---
-            
+
             # 1. 获取当前版本
             if [ -f "Cargo.toml" ]; then
               CURRENT_VERSION=$(grep '^version = ' Cargo.toml | head -1 | cut -d'"' -f2)
@@ -67,7 +67,7 @@ jobs:
             # 2. 计算新版本
             TYPE="${{ inputs.version_type }}"
             CUSTOM="${{ inputs.custom_version }}"
-            
+
             if [ "$TYPE" = "custom" ]; then
               if [ -z "$CUSTOM" ]; then
                 echo "Error: Custom version is required when type is 'custom'"
@@ -83,7 +83,7 @@ jobs:
               esac
               NEW_VERSION="$major.$minor.$patch"
             fi
-            
+
             echo "New version: $NEW_VERSION"
             echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
             echo "tag_name=v$NEW_VERSION" >> $GITHUB_OUTPUT
@@ -133,7 +133,7 @@ jobs:
           git add .
           git commit -m "release: Release $NEW_VERSION"
           git tag -a "$TAG_NAME" -m "Release $NEW_VERSION"
-          
+
           echo "Pushing changes and tag..."
           git push origin main
           git push origin "$TAG_NAME"
@@ -216,7 +216,7 @@ jobs:
         run: |
           mkdir -p cli-package
           TAG_NAME="${{ needs.prepare.outputs.tag_name }}"
-          
+
           # 确定产物路径
           if [[ "${{ matrix.platform }}" == "macos-latest" ]]; then
             if [[ "${{ matrix.args }}" == *"aarch64"* ]]; then
@@ -259,7 +259,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -279,24 +279,24 @@ jobs:
         id: changelog
         run: |
           TAG_NAME="${{ needs.prepare.outputs.tag_name }}"
-          
+
           # 尝试获取上一个 Tag
           PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+' | grep -A 1 "^$TAG_NAME$" | tail -n 1 || echo "")
-          
+
           echo "Generating changelog for $TAG_NAME (Previous: $PREVIOUS_TAG)"
-          
+
           if [ -z "$PREVIOUS_TAG" ] || [ "$PREVIOUS_TAG" == "$TAG_NAME" ]; then
             git-cliff --tag "$TAG_NAME" --output changelog.md
           else
             git-cliff "$PREVIOUS_TAG..$TAG_NAME" --output changelog.md
           fi
-          
+
           # 生成发布标题 (提取主要特性)
           VERSION=${TAG_NAME#v}
           if [ -n "$PREVIOUS_TAG" ]; then
             MAIN_FEATURE=$(git log --oneline "$PREVIOUS_TAG..$TAG_NAME" | grep -E "^[a-f0-9]+ (feat|fix)" | head -1 | sed 's/^[a-f0-9]* //' | sed 's/^feat: /✨ /' | sed 's/^fix: /🐞 /')
           fi
-          
+
           if [ -z "$MAIN_FEATURE" ]; then
              echo "release_title=$VERSION 📦 版本更新" >> $GITHUB_OUTPUT
           else

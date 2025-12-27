@@ -22,7 +22,8 @@ function normalizePath(path: string): string {
   // 去除 Windows 扩展长度路径前缀
   if (p.startsWith('\\\\?\\')) {
     p = p.slice(4)
-  } else if (p.startsWith('//?/')) {
+  }
+  else if (p.startsWith('//?/')) {
     p = p.slice(4)
   }
   // 统一使用正斜杠
@@ -181,7 +182,8 @@ onUnmounted(() => {
 
 // 开始轮询
 function startPolling() {
-  if (pollingTimer) return
+  if (pollingTimer)
+    return
   // 根据是否有索引中的项目调整轮询频率
   const interval = hasIndexingProject.value ? 3000 : 30000
   pollingTimer = window.setInterval(async () => {
@@ -351,7 +353,7 @@ async function checkAllDirectoriesExist() {
     projects.map(async (projectRoot) => {
       const exists = await checkDirectoryExists(projectRoot)
       return { projectRoot, exists }
-    })
+    }),
   )
   results.forEach(({ projectRoot, exists }) => {
     const normalizedPath = normalizePath(projectRoot)
@@ -363,7 +365,7 @@ async function checkAllDirectoriesExist() {
 function handleDeleteProject(projectRoot: string) {
   const normalizedPath = normalizePath(projectRoot)
   const projectName = normalizedPath.split('/').pop() || normalizedPath
-  
+
   dialog.warning({
     title: '确认删除',
     content: `确定要删除项目索引记录吗？\n\n项目: ${projectName}\n路径: ${normalizedPath}\n\n此操作将从列表中移除该项目，不会删除实际文件。`,
@@ -398,7 +400,6 @@ function getDirectoryExists(projectRoot: string): boolean {
   // 如果还没检测过，默认返回 true
   return directoryExistsCache.value[normalizedPath] ?? true
 }
-
 </script>
 
 <template>
@@ -473,7 +474,9 @@ function getDirectoryExists(projectRoot: string): boolean {
       <div class="empty-icon">
         <div class="i-carbon-folder-off text-5xl opacity-30" />
       </div>
-      <div class="empty-title">暂无项目索引数据</div>
+      <div class="empty-title">
+        暂无项目索引数据
+      </div>
       <div class="empty-desc">
         使用代码搜索工具后，项目将自动显示在这里
       </div>
@@ -484,7 +487,9 @@ function getDirectoryExists(projectRoot: string): boolean {
       <div class="empty-icon">
         <div class="i-carbon-search text-4xl opacity-30" />
       </div>
-      <div class="empty-title">未找到匹配的项目</div>
+      <div class="empty-title">
+        未找到匹配的项目
+      </div>
       <div class="empty-desc">
         尝试调整搜索条件或筛选器
       </div>
@@ -501,11 +506,11 @@ function getDirectoryExists(projectRoot: string): boolean {
         :project="project"
         :is-watching="watchingProjects.includes(project.project_root)"
         :directory-exists="getDirectoryExists(project.project_root)"
-	        @view-tree="viewProjectTree(project.project_root)"
-	        @reindex="handleReindex(project.project_root)"
-	        @toggle-watching="toggleWatching(project.project_root)"
-	        @copy-path="copyPath"
-	        @delete="handleDeleteProject(project.project_root)"
+        @view-tree="viewProjectTree(project.project_root)"
+        @reindex="handleReindex(project.project_root)"
+        @toggle-watching="toggleWatching(project.project_root)"
+        @copy-path="copyPath"
+        @delete="handleDeleteProject(project.project_root)"
       />
     </div>
 

@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: '发布标签名称 (例如 v0.2.3)'
+        description: 发布标签名称 (例如 v0.2.3)
         required: true
         type: string
 

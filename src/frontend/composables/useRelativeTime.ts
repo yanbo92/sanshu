@@ -15,7 +15,8 @@ export function useRelativeTime() {
    * @returns 相对时间文本，如 "刚刚"、"5 分钟前"
    */
   function formatRelative(timeStr: string | null): string {
-    if (!timeStr) return '从未'
+    if (!timeStr)
+      return '从未'
 
     try {
       const date = new Date(timeStr)
@@ -27,14 +28,21 @@ export function useRelativeTime() {
       const diffMonth = Math.floor(diffDay / 30)
       const diffYear = Math.floor(diffDay / 365)
 
-      if (diffSec < 0) return '刚刚' // 处理时间偏差
-      if (diffSec < 60) return '刚刚'
-      if (diffMin < 60) return `${diffMin} 分钟前`
-      if (diffHour < 24) return `${diffHour} 小时前`
-      if (diffDay < 30) return `${diffDay} 天前`
-      if (diffMonth < 12) return `${diffMonth} 个月前`
+      if (diffSec < 0)
+        return '刚刚' // 处理时间偏差
+      if (diffSec < 60)
+        return '刚刚'
+      if (diffMin < 60)
+        return `${diffMin} 分钟前`
+      if (diffHour < 24)
+        return `${diffHour} 小时前`
+      if (diffDay < 30)
+        return `${diffDay} 天前`
+      if (diffMonth < 12)
+        return `${diffMonth} 个月前`
       return `${diffYear} 年前`
-    } catch {
+    }
+    catch {
       return '未知'
     }
   }
@@ -45,7 +53,8 @@ export function useRelativeTime() {
    * @returns 绝对时间文本，如 "2024/01/15 14:30:00"
    */
   function formatAbsolute(timeStr: string | null): string {
-    if (!timeStr) return '从未索引'
+    if (!timeStr)
+      return '从未索引'
 
     try {
       return new Date(timeStr).toLocaleString('zh-CN', {
@@ -56,7 +65,8 @@ export function useRelativeTime() {
         minute: '2-digit',
         second: '2-digit',
       })
-    } catch {
+    }
+    catch {
       return '时间格式错误'
     }
   }
@@ -74,7 +84,8 @@ export function useRelativeTime() {
    * 开始自动更新时间（每分钟更新一次）
    */
   function startAutoUpdate(intervalMs = 60000) {
-    if (timer) return
+    if (timer)
+      return
 
     timer = window.setInterval(() => {
       now.value = Date.now()
@@ -105,4 +116,3 @@ export function useRelativeTime() {
     stopAutoUpdate,
   }
 }
-

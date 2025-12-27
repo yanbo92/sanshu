@@ -16,7 +16,7 @@ const config = ref({ api_key: '' })
 
 // 测试状态
 const testLoading = ref(false)
-const testResult = ref<{ success: boolean; message: string; preview?: string } | null>(null)
+const testResult = ref<{ success: boolean, message: string, preview?: string } | null>(null)
 const testLibrary = ref('spring-projects/spring-framework')
 const testTopic = ref('core')
 
@@ -39,7 +39,8 @@ async function loadConfig() {
   try {
     const res = await invoke('get_context7_config') as { api_key?: string }
     config.value = { api_key: res.api_key || '' }
-  } catch (err) {
+  }
+  catch (err) {
     message.error(`加载配置失败: ${err}`)
   }
 }
@@ -48,7 +49,8 @@ async function saveConfig() {
   try {
     await invoke('save_context7_config', { apiKey: config.value.api_key })
     message.success('Context7 配置已保存')
-  } catch (err) {
+  }
+  catch (err) {
     message.error(`保存失败: ${err}`)
   }
 }
@@ -61,22 +63,25 @@ async function runTest() {
       library: testLibrary.value || null,
       topic: testTopic.value || null,
     }) as any
-    
+
     testResult.value = res
-    if (res.success) message.success('测试成功')
+    if (res.success)
+      message.success('测试成功')
     else message.error(res.message)
-    
-  } catch (err) {
+  }
+  catch (err) {
     testResult.value = { success: false, message: `System Error: ${err}` }
     message.error(`测试异常: ${err}`)
-  } finally {
+  }
+  finally {
     testLoading.value = false
   }
 }
 
 // 组件挂载
 onMounted(() => {
-  if (props.active) loadConfig()
+  if (props.active)
+    loadConfig()
 })
 
 defineExpose({ saveConfig })
@@ -88,7 +93,9 @@ defineExpose({ saveConfig })
       <n-space vertical size="large" class="config-content">
         <!-- 介绍提示 -->
         <n-alert type="info" :bordered="false" class="intro-alert">
-          <template #icon><div class="i-carbon-information" /></template>
+          <template #icon>
+            <div class="i-carbon-information" />
+          </template>
           Context7 提供最新的框架和库文档查询服务。
         </n-alert>
 
@@ -104,15 +111,17 @@ defineExpose({ saveConfig })
             />
             <template #feedback>
               <span class="form-feedback">
-                免费模式有限制。获取 Key: 
+                免费模式有限制。获取 Key:
                 <a href="https://context7.com/dashboard" target="_blank" class="link">context7.com</a>
               </span>
             </template>
           </n-form-item>
-          
+
           <div class="flex justify-end mt-3">
             <n-button type="primary" @click="saveConfig">
-              <template #icon><div class="i-carbon-save" /></template>
+              <template #icon>
+                <div class="i-carbon-save" />
+              </template>
               保存配置
             </n-button>
           </div>
@@ -129,20 +138,22 @@ defineExpose({ saveConfig })
                 clearable
               />
             </n-form-item>
-            
+
             <n-form-item label="查询主题 (可选)">
               <n-input v-model:value="testTopic" placeholder="e.g. routing, state management" />
             </n-form-item>
 
             <div class="flex justify-end">
-              <n-button 
-                secondary 
-                type="info" 
-                :loading="testLoading" 
+              <n-button
+                secondary
+                type="info"
+                :loading="testLoading"
                 :disabled="!testLibrary"
                 @click="runTest"
               >
-                <template #icon><div class="i-carbon-play" /></template>
+                <template #icon>
+                  <div class="i-carbon-play" />
+                </template>
                 测试查询
               </n-button>
             </div>
@@ -154,11 +165,17 @@ defineExpose({ saveConfig })
                   <div :class="testResult.success ? 'i-carbon-checkmark-filled' : 'i-carbon-warning-filled'" />
                   {{ testResult.success ? '测试成功' : '测试失败' }}
                 </div>
-                <div class="result-message">{{ testResult.message }}</div>
-                
+                <div class="result-message">
+                  {{ testResult.message }}
+                </div>
+
                 <div v-if="testResult.preview" class="result-preview">
-                  <div class="preview-label">响应预览:</div>
-                  <div class="preview-content">{{ testResult.preview }}</div>
+                  <div class="preview-label">
+                    响应预览:
+                  </div>
+                  <div class="preview-content">
+                    {{ testResult.preview }}
+                  </div>
                 </div>
               </div>
             </transition>
@@ -167,12 +184,14 @@ defineExpose({ saveConfig })
 
         <!-- 常用库参考 -->
         <div class="quick-libs">
-          <div class="libs-label">常用库参考</div>
+          <div class="libs-label">
+            常用库参考
+          </div>
           <n-space size="small">
-            <n-tag 
-              v-for="lib in popularLibs" 
-              :key="lib.value" 
-              size="small" 
+            <n-tag
+              v-for="lib in popularLibs"
+              :key="lib.value"
+              size="small"
               class="lib-tag"
               :bordered="false"
               @click="testLibrary = lib.value"

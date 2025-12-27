@@ -5,6 +5,12 @@ import { useMessage } from 'naive-ui'
 import { computed, ref } from 'vue'
 import { useVersionCheck } from '../../composables/useVersionCheck'
 
+const props = defineProps<Props>()
+
+const emit = defineEmits<{
+  'update:show': [value: boolean]
+}>()
+
 // 创建 Markdown 渲染实例，配置代码高亮
 const md = new MarkdownIt({
   html: false, // 禁止原始 HTML 标签，防止 XSS
@@ -37,11 +43,6 @@ interface Props {
     releaseNotes: string
   } | null
 }
-
-const props = defineProps<Props>()
-const emit = defineEmits<{
-  'update:show': [value: boolean]
-}>()
 
 const message = useMessage()
 const {

@@ -10,13 +10,13 @@ interface Props {
 }
 
 interface Emits {
-	(e: 'view-tree'): void
-	(e: 'reindex'): void
-	(e: 'toggle-watching'): void
-	// 复制路径事件，向父组件传递规范化后的路径
-	(e: 'copy-path', path: string): void
-	// 删除项目索引记录
-	(e: 'delete'): void
+  (e: 'view-tree'): void
+  (e: 'reindex'): void
+  (e: 'toggle-watching'): void
+  // 复制路径事件，向父组件传递规范化后的路径
+  (e: 'copy-path', path: string): void
+  // 删除项目索引记录
+  (e: 'delete'): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -61,26 +61,27 @@ const statusConfig = computed(() => {
 
 // 规范化展示路径（去掉 Windows 扩展前缀并统一斜杠）
 const displayPath = computed(() => {
-	// 原始路径可能包含 Windows 扩展前缀，如 \\?\E:\\ 或 //?/E:/
-	let p = props.project.project_root || ''
-	if (p.startsWith('\\\\?\\'))
-		p = p.slice(4)
-	else if (p.startsWith('//?/'))
-		p = p.slice(4)
+  // 原始路径可能包含 Windows 扩展前缀，如 \\?\E:\\ 或 //?/E:/
+  let p = props.project.project_root || ''
+  if (p.startsWith('\\\\?\\'))
+    p = p.slice(4)
+  else if (p.startsWith('//?/'))
+    p = p.slice(4)
 
-	// 统一使用正斜杠，便于展示
-	return p.replace(/\\/g, '/')
+  // 统一使用正斜杠，便于展示
+  return p.replace(/\\/g, '/')
 })
 
 // 提取项目名称（路径最后一段）
 const projectName = computed(() => {
-	const parts = displayPath.value.split('/')
-	return parts[parts.length - 1] || displayPath.value
+  const parts = displayPath.value.split('/')
+  return parts[parts.length - 1] || displayPath.value
 })
 
 // 格式化相对时间
 function formatRelativeTime(timeStr: string | null): string {
-  if (!timeStr) return '从未'
+  if (!timeStr)
+    return '从未'
   try {
     const date = new Date(timeStr)
     const now = new Date()
@@ -90,19 +91,25 @@ function formatRelativeTime(timeStr: string | null): string {
     const diffHour = Math.floor(diffMin / 60)
     const diffDay = Math.floor(diffHour / 24)
 
-    if (diffSec < 60) return '刚刚'
-    if (diffMin < 60) return `${diffMin} 分钟前`
-    if (diffHour < 24) return `${diffHour} 小时前`
-    if (diffDay < 30) return `${diffDay} 天前`
+    if (diffSec < 60)
+      return '刚刚'
+    if (diffMin < 60)
+      return `${diffMin} 分钟前`
+    if (diffHour < 24)
+      return `${diffHour} 小时前`
+    if (diffDay < 30)
+      return `${diffDay} 天前`
     return date.toLocaleDateString('zh-CN')
-  } catch {
+  }
+  catch {
     return '未知'
   }
 }
 
 // 格式化绝对时间
 function formatAbsoluteTime(timeStr: string | null): string {
-  if (!timeStr) return '从未索引'
+  if (!timeStr)
+    return '从未索引'
   try {
     return new Date(timeStr).toLocaleString('zh-CN', {
       year: 'numeric',
@@ -112,7 +119,8 @@ function formatAbsoluteTime(timeStr: string | null): string {
       minute: '2-digit',
       second: '2-digit',
     })
-  } catch {
+  }
+  catch {
     return '时间格式错误'
   }
 }
@@ -168,7 +176,7 @@ function formatAbsoluteTime(timeStr: string | null): string {
           class="status-badge"
         >
           <template #icon>
-            <div :class="[statusConfig.icon, 'text-xs']" />
+            <div class="text-xs" :class="[statusConfig.icon]" />
           </template>
           {{ statusConfig.text }}
         </n-tag>
@@ -542,4 +550,3 @@ function formatAbsoluteTime(timeStr: string | null): string {
   }
 }
 </style>
-

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { FileIndexStatusType, ProjectFilesStatus, ProjectIndexStatus } from '../../types/tauri'
 import type { TreeOption } from 'naive-ui'
+import type { FileIndexStatusType, ProjectFilesStatus, ProjectIndexStatus } from '../../types/tauri'
 import { invoke } from '@tauri-apps/api/core'
 import { useMessage } from 'naive-ui'
 import { computed, h, ref, watch } from 'vue'

@@ -558,7 +558,25 @@ pub fn get_acemcp_index_status(project_root_path: String) -> Result<ProjectIndex
 /// 获取所有项目的索引状态
 #[tauri::command]
 pub fn get_all_acemcp_index_status() -> Result<ProjectsIndexStatus, String> {
-    Ok(AcemcpTool::get_all_index_status())
+    log::debug!("📋 [get_all_acemcp_index_status] 开始获取所有项目索引状态");
+    
+    let status = AcemcpTool::get_all_index_status();
+    let project_count = status.projects.len();
+    
+    log::debug!("📊 [get_all_acemcp_index_status] 返回项目数: {}", project_count);
+    
+    // 详细记录每个项目的状态（用于调试）
+    for (path, proj_status) in &status.projects {
+        log::debug!(
+            "📁 [get_all_acemcp_index_status] 项目: path={}, status={:?}, total_files={}, last_success_time={:?}",
+            path,
+            proj_status.status,
+            proj_status.total_files,
+            proj_status.last_success_time
+        );
+    }
+    
+    Ok(status)
 }
 
 /// 获取指定项目内所有可索引文件的索引状态，用于前端构建文件树
@@ -1690,23 +1708,34 @@ fn build_single_file_blobs_for_speed_test(
 }
 
 /// Ping 测试辅助函数
+/// 注意：使用 GET 方法而非 HEAD，因为部分 ACE 服务器的 /health 端点不支持 HEAD 方法（返回 405）
 async fn ping_endpoint(client: &reqwest::Client, url: &str, token: &str) -> Result<u64, String> {
+    log::debug!("🔗 [Ping] 开始请求: url={}", url);
+    
     let start = std::time::Instant::now();
     let response = client
-        .head(url)
+        .get(url)  // 使用 GET 方法代替 HEAD，解决 HTTP 405 Method Not Allowed 问题
         .timeout(std::time::Duration::from_secs(10))
         .header(reqwest::header::AUTHORIZATION, format!("Bearer {}", token))
         .send()
         .await
-        .map_err(|e| format!("请求失败: {}", e))?;
+        .map_err(|e| {
+            log::warn!("❌ [Ping] 请求失败: url={}, error={}", url, e);
+            format!("请求失败: {}", e)
+        })?;
     
     let elapsed = start.elapsed().as_millis() as u64;
+    let status = response.status();
     
-    if response.status().is_success() || response.status().as_u16() == 404 {
+    log::debug!("✅ [Ping] 响应: url={}, status={}, elapsed={}ms", url, status, elapsed);
+    
+    if status.is_success() || status.as_u16() == 404 {
         // 404 也算成功，因为只是测试连通性
+        // 2xx 成功响应 或 404 表示端点存在但资源不存在，连通性正常
         Ok(elapsed)
     } else {
-        Err(format!("HTTP {}", response.status()))
+        log::warn!("⚠️ [Ping] HTTP 错误响应: url={}, status={}", url, status);
+        Err(format!("HTTP {}", status))
     }
 }
 

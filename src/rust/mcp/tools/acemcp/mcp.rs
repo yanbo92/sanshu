@@ -446,10 +446,24 @@ fn home_projects_status_file() -> PathBuf {
 /// 读取所有项目的索引状态
 fn load_projects_status() -> ProjectsIndexStatus {
     let status_path = home_projects_status_file();
+    log_debug!("📂 [load_projects_status] 状态文件路径: {:?}", status_path);
+    
     if status_path.exists() {
         let data = fs::read_to_string(&status_path).unwrap_or_default();
-        serde_json::from_str(&data).unwrap_or_default()
+        log_debug!("📄 [load_projects_status] 读取到状态文件，大小: {} 字节", data.len());
+        
+        match serde_json::from_str::<ProjectsIndexStatus>(&data) {
+            Ok(status) => {
+                log_debug!("✅ [load_projects_status] 解析成功，项目数: {}", status.projects.len());
+                status
+            }
+            Err(e) => {
+                log_debug!("⚠️ [load_projects_status] 解析失败: {}", e);
+                ProjectsIndexStatus::default()
+            }
+        }
     } else {
+        log_debug!("📭 [load_projects_status] 状态文件不存在，返回空列表");
         ProjectsIndexStatus::default()
     }
 }

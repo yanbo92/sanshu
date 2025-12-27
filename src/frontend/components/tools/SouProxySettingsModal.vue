@@ -264,14 +264,38 @@ function confirmProxySelection() {
 
 async function loadIndexedProjectsForSpeedTest() {
   projectPickerLoading.value = true
+  console.log('[SouProxy] 🔄 开始加载已索引项目列表...')
+  
   try {
     const statusResult = await invoke<{ projects: Record<string, ProjectIndexStatusLite> }>('get_all_acemcp_index_status')
-    const list = Object.values(statusResult.projects || {})
-      .filter(p => (p.total_files || 0) > 0)
+    
+    // 详细日志：打印原始返回数据
+    console.log('[SouProxy] 📦 后端返回原始数据:', statusResult)
+    console.log('[SouProxy] 📊 项目总数（原始）:', Object.keys(statusResult.projects || {}).length)
+    
+    const allProjects = Object.values(statusResult.projects || {})
+    console.log('[SouProxy] 📋 所有项目列表:', allProjects.map(p => ({
+      root: p.project_root,
+      status: p.status,
+      total_files: p.total_files,
+      last_success_time: p.last_success_time
+    })))
+    
+    // 过滤条件：保留已索引文件数 > 0 的项目
+    // 注意：如果项目正在索引中（status: indexing），可能 total_files 还未更新
+    const list = allProjects.filter(p => {
+      const hasFiles = (p.total_files || 0) > 0
+      console.log(`[SouProxy] 📁 项目 ${getProjectName(p.project_root)}: total_files=${p.total_files}, status=${p.status}, 通过过滤=${hasFiles}`)
+      return hasFiles
+    })
 
+    console.log('[SouProxy] ✅ 过滤后项目数:', list.length)
+    console.log('[SouProxy] 📝 过滤后项目列表:', list.map(p => getProjectName(p.project_root)))
+    
     indexedProjects.value = list
   }
   catch (e) {
+    console.error('[SouProxy] ❌ 加载已索引项目失败:', e)
     message.error(`加载已索引项目失败: ${e}`)
     indexedProjects.value = []
   }
@@ -995,8 +1019,8 @@ function formatRelativeTime(timeStr: string | null): string {
                   </div>
                 </div>
 
-                <!-- Tabs 内容区 -->
-                <n-tabs type="line" animated class="flex-1 flex flex-col" pane-class="flex-1 p-4 overflow-y-auto max-h-[500px]">
+                <!-- Tabs 内容区 - 优化背景确保文字可读 -->
+                <n-tabs type="line" animated class="flex-1 flex flex-col results-tabs" pane-class="flex-1 p-4 overflow-y-auto max-h-[500px] bg-slate-50 dark:bg-slate-900/50">
                   <!-- Tab 1: 核心指标 -->
                   <n-tab-pane name="overview" tab="📊 核心指标">
                     <div class="space-y-4">
@@ -1016,9 +1040,9 @@ function formatRelativeTime(timeStr: string | null): string {
                           :key="idx"
                           class="group relative p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-blue-400 transition-all duration-200 shadow-sm"
                         >
-                          <!-- 标题 -->
+                          <!-- 标题 - 使用高对比度颜色确保文字清晰 -->
                           <div class="flex justify-between items-start mb-4">
-                            <span class="font-medium text-sm text-gray-600 dark:text-gray-300">{{ metric.name }}</span>
+                            <span class="font-semibold text-sm text-gray-800 dark:text-gray-100">{{ metric.name }}</span>
                             <div v-if="metric.success" class="i-fa6-solid-circle-check text-green-500" />
                             <div v-else class="i-fa6-solid-circle-xmark text-red-500" />
                           </div>
@@ -1243,8 +1267,10 @@ function formatRelativeTime(timeStr: string | null): string {
 
           <div class="flex justify-between items-start z-10">
              <div class="flex items-center gap-2 mr-2 min-w-0">
-               <div class="i-fa6-solid-code-branch text-gray-400 group-hover:text-primary-500 transition-colors" />
-               <div class="font-bold text-sm truncate" :title="getProjectName(p.project_root)">
+               <!-- 图标：使用高亮颜色增强视觉效果 -->
+               <div class="i-fa6-solid-code-branch text-primary-500 dark:text-primary-400 group-hover:text-primary-600 dark:group-hover:text-primary-300 transition-colors" />
+               <!-- 标题文字：使用高对比度颜色确保清晰可读 -->
+               <div class="font-bold text-sm truncate text-gray-800 dark:text-gray-100" :title="getProjectName(p.project_root)">
                  {{ getProjectName(p.project_root) }}
                </div>
              </div>
@@ -1369,5 +1395,24 @@ function formatRelativeTime(timeStr: string | null): string {
 }
 :deep(.n-card__content) {
   padding: 0 !important;
+}
+
+/* 优化结果区 Tabs 内容区样式 - 确保文字清晰可读 */
+.results-tabs :deep(.n-tab-pane) {
+  /* 添加内边框增强层次感 */
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+/* 暗色模式下优化指标卡片文字对比度 */
+:deep(.dark) .results-tabs,
+.dark .results-tabs {
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+}
+
+/* 优化代码块在暗色模式下的可读性 */
+:deep(.n-code) {
+  max-height: 300px;
+  overflow: auto;
 }
 </style>

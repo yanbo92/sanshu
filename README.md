@@ -47,6 +47,11 @@
 
 **三术 (sanshu)** 是一个集成了 **智 (zhi)**、**记 (ji)**、**搜 (sou)** 三大核心能力的 AI 辅助编程增强系统。它通过 MCP (Model Context Protocol) 协议与 AI 助手深度协同，实现了从被动应答到主动协作的范式转变。
 
+<div align="center">
+  <img src="screenshots/home.png" alt="三术主界面" width="800" />
+  <p><em>三术主界面 - 集成三大核心工具的统一工作台</em></p>
+</div>
+
 ---
 
 ## 📑 目录
@@ -85,7 +90,8 @@
 - **状态可视化**：实时展示后端任务状态（如索引进度），让协作更加透明
 
 <div align="center">
-  <img src="screenshots/popup.png" alt="Zhi Popup Interaction" width="600" />
+  <img src="screenshots/popup.png" alt="Zhi Popup Interaction" width="700" />
+  <p><em>Zhi 智能交互弹窗 - 确保AI决策透明化的强制交互界面</em></p>
 </div>
 
 ### 📚 ji (记) - 记忆管理系统
@@ -134,6 +140,11 @@
 **配置说明**：
 - API Key（可选）：在设置页面的「MCP 工具」标签页中配置
 - 配置 API Key 后可获得更高的 API 调用速率限制
+
+<div align="center">
+  <img src="screenshots/mcp-tool.png" alt="MCP工具配置界面" width="700" />
+  <p><em>MCP工具配置界面 - Context7文档查询工具设置</em></p>
+</div>
 
 ---
 
@@ -426,6 +437,11 @@ sanshu --version
 }
 ```
 PS：某些插件或者CLI工具可能无法正确识别`三术`中文，请自行用拼音`sanshu`作为命名，否则可能会导致无法正确识别。
+
+<div align="center">
+  <img src="screenshots/setting.png" alt="设置页面" width="750" />
+  <p><em>设置页面 - 完整的配置选项和工具管理界面</em></p>
+</div>
 
 ### 📝 在 AI 编辑器中启用提示词（可选）
 

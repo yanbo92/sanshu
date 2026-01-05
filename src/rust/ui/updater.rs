@@ -5,6 +5,9 @@ use crate::config::AppState;
 use crate::network::{detect_geo_location, ProxyDetector, ProxyInfo, create_update_client, create_download_client};
 use crate::network::geo::GeoLocation;
 
+// 关闭更新检测/下载安装：用于自定义构建，避免与官方版本耦合
+const UPDATES_ENABLED: bool = false;
+
 /// 网络状态信息
 /// 用于向前端展示当前的网络环境和代理状态
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -62,6 +65,18 @@ pub struct UpdateProgress {
 /// 检查是否有可用更新
 #[tauri::command]
 pub async fn check_for_updates(app: AppHandle, state: State<'_, AppState>) -> Result<UpdateInfo, String> {
+    if !UPDATES_ENABLED {
+        let current_version = app.package_info().version.to_string();
+        return Ok(UpdateInfo {
+            available: false,
+            current_version: current_version.clone(),
+            latest_version: current_version,
+            release_notes: String::new(),
+            download_url: String::new(),
+            network_status: NetworkStatus::default(),
+        });
+    }
+
     log::info!("🔍 开始检查更新");
 
     // 第一步：检测地理位置（用于网络状态展示）
@@ -202,6 +217,10 @@ fn compare_versions(v1: &str, v2: &str) -> bool {
 /// 下载并安装更新
 #[tauri::command]
 pub async fn download_and_install_update(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    if !UPDATES_ENABLED {
+        return Err("更新已禁用".to_string());
+    }
+
     log::info!("🚀 开始下载和安装更新");
 
     // 首先检查更新信息

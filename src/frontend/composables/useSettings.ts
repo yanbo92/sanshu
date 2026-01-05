@@ -41,9 +41,12 @@ function createSettings() {
 
   // 节流定时器
   let resizeThrottleTimer: number | null = null
+  let moveThrottleTimer: number | null = null
 
   // 窗口大小变化监听器
   let windowResizeUnlisten: (() => void) | null = null
+  // 窗口移动监听器
+  let windowMoveUnlisten: (() => void) | null = null
 
   function setMessageInstance(messageInstance: any) {
     message = messageInstance
@@ -117,6 +120,7 @@ function createSettings() {
       if (!fixedWindowSize.value) {
         await setupWindowResizeListener()
       }
+      await setupWindowMoveListener()
     }
     catch (error) {
       console.error('加载窗口设置失败:', error)
@@ -304,6 +308,27 @@ function createSettings() {
     }, windowConstraints.value.resize_throttle_ms) // 使用配置的节流时间
   }
 
+  // 节流保存窗口位置
+  function throttledSaveWindowPosition(x: number, y: number) {
+    if (moveThrottleTimer) {
+      clearTimeout(moveThrottleTimer)
+    }
+
+    moveThrottleTimer = window.setTimeout(async () => {
+      try {
+        await invoke('set_window_settings', {
+          windowSettings: {
+            position_x: Math.round(x),
+            position_y: Math.round(y),
+          },
+        })
+      }
+      catch (error) {
+        console.error('保存窗口位置失败:', error)
+      }
+    }, windowConstraints.value.resize_throttle_ms)
+  }
+
   // 设置窗口大小变化监听器
   async function setupWindowResizeListener() {
     try {
@@ -326,6 +351,24 @@ function createSettings() {
     }
   }
 
+  // 设置窗口移动监听器
+  async function setupWindowMoveListener() {
+    try {
+      const webview = getCurrentWebviewWindow()
+
+      if (windowMoveUnlisten) {
+        windowMoveUnlisten()
+      }
+
+      windowMoveUnlisten = await webview.onMoved(({ payload }) => {
+        throttledSaveWindowPosition(payload.x, payload.y)
+      })
+    }
+    catch (error) {
+      console.error('设置窗口移动监听器失败:', error)
+    }
+  }
+
   // 移除窗口大小变化监听器
   function removeWindowResizeListener() {
     if (windowResizeUnlisten) {
@@ -336,6 +379,18 @@ function createSettings() {
     if (resizeThrottleTimer) {
       clearTimeout(resizeThrottleTimer)
       resizeThrottleTimer = null
+    }
+  }
+
+  function removeWindowMoveListener() {
+    if (windowMoveUnlisten) {
+      windowMoveUnlisten()
+      windowMoveUnlisten = null
+    }
+
+    if (moveThrottleTimer) {
+      clearTimeout(moveThrottleTimer)
+      moveThrottleTimer = null
     }
   }
 
@@ -449,6 +504,7 @@ function createSettings() {
     reloadAllSettings,
     setupWindowFocusListener,
     removeWindowFocusListener,
+    removeWindowMoveListener,
   }
 }
 

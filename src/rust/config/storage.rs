@@ -114,6 +114,15 @@ pub async fn load_config_and_apply_window_settings(
         if let Err(_e) = window.set_size(LogicalSize::new(target_width, target_height)) {
             // 静默处理窗口大小设置失败
         }
+
+        // 应用窗口位置（如果已保存）
+        if let (Some(x), Some(y)) = (window_config.position_x, window_config.position_y) {
+            if crate::constants::validation::is_valid_window_position(x, y) {
+                if let Err(e) = window.set_position(tauri::PhysicalPosition::new(x, y)) {
+                    log::warn!("设置窗口位置失败: {}", e);
+                }
+            }
+        }
     }
 
     Ok(())

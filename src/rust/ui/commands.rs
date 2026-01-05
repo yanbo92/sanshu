@@ -200,7 +200,9 @@ pub async fn get_window_settings(state: State<'_, AppState>) -> Result<serde_jso
         "fixed_width": config.ui_config.window_config.fixed_width,
         "fixed_height": config.ui_config.window_config.fixed_height,
         "free_width": config.ui_config.window_config.free_width,
-        "free_height": config.ui_config.window_config.free_height
+        "free_height": config.ui_config.window_config.free_height,
+        "position_x": config.ui_config.window_config.position_x,
+        "position_y": config.ui_config.window_config.position_y
     });
 
     Ok(window_settings)
@@ -356,6 +358,19 @@ pub async fn set_window_settings(
                     .ui_config
                     .window_config
                     .update_current_size(width, height);
+            }
+        }
+
+        // 更新窗口位置（物理坐标）
+        if let (Some(x), Some(y)) = (
+            window_settings.get("position_x").and_then(|v| v.as_i64()),
+            window_settings.get("position_y").and_then(|v| v.as_i64()),
+        ) {
+            let x = x as i32;
+            let y = y as i32;
+            if validation::is_valid_window_position(x, y) {
+                config.ui_config.window_config.position_x = Some(x);
+                config.ui_config.window_config.position_y = Some(y);
             }
         }
     }

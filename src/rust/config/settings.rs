@@ -86,6 +86,12 @@ pub struct WindowConfig {
     pub free_width: f64,
     #[serde(default = "default_free_height")]
     pub free_height: f64,
+
+    // 窗口位置（物理坐标）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub position_x: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub position_y: Option<i32>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -351,6 +357,8 @@ pub fn default_window_config() -> WindowConfig {
         fixed_height: window::DEFAULT_HEIGHT,
         free_width: window::DEFAULT_WIDTH,
         free_height: window::DEFAULT_HEIGHT,
+        position_x: None,
+        position_y: None,
     }
 }
 
@@ -766,4 +774,3 @@ pub fn default_proxy_port() -> u16 {
 pub fn default_proxy_only_for_cn() -> bool {
     true // 默认仅在中国大陆地区使用代理
 }
-
